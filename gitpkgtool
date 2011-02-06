@@ -6,27 +6,22 @@ use Cwd;
 use File::Basename;
 
 my $helpflag = 0;
-my $verbose  = 0;
 
 # process command line arguments
 
-my ($opt) = GetOptions (
-	'help'	=> \$helpflag,
-	'verbose' => \$verbose
-);
-
-if (!$opt || $helpflag || scalar (@ARGV) == 0) {
-
+if (scalar (@ARGV) ==0 || $ARGV[0] eq 'help') {
 	print STDERR 	"Usage: githelper [options] <command>\n".
-								"	 nexttag   - tags the next build number\n".
+								"	 nexttag\n".
+								"  - tags the next build number\n".
 								"  buildrpm <buildtag> [repo src]\n".
 								"  - builds rpm with specified build number.\n";
 	exit (0);
-};
+}
 
-if ($ARGV[0] eq 'nexttag') {
+elsif ($ARGV[0] eq 'nexttag') {
 	nexttag ();
 }
+
 elsif ($ARGV[0] eq 'buildrpm') {
 	buildrpm ();
 };
@@ -40,6 +35,22 @@ exit (0);
 # ------------------------------------------------------------------------
 
 sub nexttag {
+
+	shift @ARGV;
+
+	my $verbose = 0;
+
+	my ($opt) = GetOptions (
+		'help'	=> \$helpflag,
+		'verbose' => \$verbose
+	);
+
+	if (!$opt || $helpflag) {
+		print STDERR "gitpkgtool nexttag [--debug]\n";
+		exit (1);
+	};
+
+
 
 	my $nowver = 0;
 	open (F, "git tag|");
@@ -116,7 +127,7 @@ sub buildrpm {
 	# Checkout the specified build
 	if (defined $buildtag) {
 		$verbose && print STDERR " * Checking out build $buildtag\n";
-		call_system ("git checkout $buildtag");
+		call_system ("git checkout -q $buildtag");
 	};
 
 	$verbose && print STDERR " * Cleaning up project $project\n";
@@ -148,34 +159,71 @@ sub buildrpm {
 
 	# work up a version number
 	my $version = buildToVersion ($buildtag);
-	$verbose && print STDERR " * building $buildtag as $version\n";
+	$verbose && print STDERR " * building $buildtag as version $version\n";
 
 	# build the SOURCE tar file
 	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/$project-$version.tar.gz";
 	call_system ("tar czf $tarfile --exclude $project.spec --exclude ".
-		"./.git .") && die "Failed to build $tarfile\n";
+		"./.git --transform \"s#^#$project-$version/#\" *") && 
+		die "Failed to build $tarfile\n";
 	$verbose && print STDERR " * source tarball is in $tarfile\n";
 
 	# copy the SPEC file over, setting version numbers.
+	my $specfile = $ENV{'HOME'} . "/rpm/SPECS/$project.spec";
+	open (FO, "> $specfile");
+
+	# parse through specfile
 	open (FI, "$project.spec") || die "There is no $project.spec file in ".
 		"the source.\n";
-	open (FO, ">" . $ENV{'HOME'} . "/rpm/SPECS/$project.spec");
 	while (my $line = <FI>) {
 		# replace version number
 		if ($line =~ /^Version:/) {
 			$line = "Version: $version\n";
 		};
-		print "[$line]";
+		if ($line =~ /^Source:/) {
+			$line = "Source: $project-$version.tar.gz\n";
+		};
+
+		if ($line =~ /^%changelog/) {
+
+			# generate changelog from git log
+
+			print FO "%changelog\n";
+			my $lastauthor = "";
+			open (FC, "git log |");
+			while (my $line = <FC>) {
+				chomp ($line);
+				if ($line =~ /^commit/) { next; };
+				if ($line =~ /^Merge:/) { next; };
+				if ($line =~ /^Author:\s(.*)$/) {
+					$lastauthor = $1;
+					next;
+				};
+				if ($line =~ /^Date:\s+(\w+)\s+(\w+)\s+(\w+)\s+[\w:]+\s(\d+)\s/) {
+					print FO "\n * $1 $2 $3 $4 $lastauthor\n";
+					next;
+				};
+				if ($line =~ /^\s*$/) {
+					next;
+				};
+				$line =~ s/^\s+//;
+				print FO " - $line\n";
+			};
+			close (FC);
+			next;
+		};
+
+		# pass through other spec file lines
 		print FO $line;
 	};
 	close (FI);
+
 	close (FO);
-	$verbose && print STDERR " * RPM SPEC is in " . $ENV{'HOME'} . 
-		"/rpm/SPECS/$project.spec\n";
+	$verbose && print STDERR " * RPM SPEC is in $specfile\n";
 
 	# invoke rpmbuild
 	$verbose && print STDERR " * Invoking rpmbuild ...\n";
-	call_system ("rpmbuild -ba /rpm/SPEC/$project.spec") &&
+	call_system ("rpmbuild -ba --quiet $specfile") &&
 		die ("rpmbuild of $project.spec failed.\n");
 	
 
@@ -213,6 +261,18 @@ sub call_system {
 
 	return $? >> 8;
 
+};
+
+
+sub ev_call_system {
+	my $ret;
+	eval {
+		$ret = call_system (@_);
+	};
+	if ($@) {
+		print STDERR "* FATAL [$@]\n";
+	};
+	return $ret;
 };
 
 
