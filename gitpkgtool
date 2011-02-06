@@ -1,0 +1,278 @@
+#! /usr/bin/perl
+
+use strict;
+use Getopt::Long;
+use Cwd;
+use File::Basename;
+
+my $helpflag = 0;
+my $verbose  = 0;
+
+# process command line arguments
+
+my ($opt) = GetOptions (
+	'help'	=> \$helpflag,
+	'verbose' => \$verbose
+);
+
+if (!$opt || $helpflag || scalar (@ARGV) == 0) {
+
+	print STDERR 	"Usage: githelper [options] <command>\n".
+								"	 nexttag   - tags the next build number\n".
+								"  buildrpm <buildtag> [repo src]\n".
+								"  - builds rpm with specified build number.\n";
+	exit (0);
+};
+
+if ($ARGV[0] eq 'nexttag') {
+	nexttag ();
+}
+elsif ($ARGV[0] eq 'buildrpm') {
+	buildrpm ();
+};
+
+exit (0);
+
+
+# ========================================================================
+# tags the last commit with a build tag. The build tag number is 
+# incremented from the highest, last, tag number.
+# ------------------------------------------------------------------------
+
+sub nexttag {
+
+	my $nowver = 0;
+	open (F, "git tag|");
+	while ( my $line = <F>) {
+		if (my ($ver) = $line =~ /^B(\d+)$/) {
+			if ($ver > $nowver) {
+				$nowver = $ver;
+			};
+		};
+	};
+
+	my $nextver = $nowver + 1;
+	printf "%sTagging as B$nextver\n",
+		($verbose ? "Latest is B$nowver, " : "");
+	call_system ("git tag -a -m \"build B$nextver\" B$nextver");
+
+	call_system ("git push --tags");
+
+};
+
+
+# ========================================================================
+# build rpm
+# ------------------------------------------------------------------------
+
+sub buildrpm {
+
+	shift @ARGV;
+	my ($buildtag, $reposource) = @ARGV;
+
+	if (! defined $buildtag) {
+		print STDERR "<buildtag> is required.\n";
+		exit (1);
+	};
+
+	prepRPM ();
+
+	my $dir = ".";
+	my $project = "";
+
+	if (defined $reposource) {
+		
+		# user specified a repo to pull frm
+		$verbose && print STDERR "Cloning $reposource\n";
+
+		$dir = "/tmp/githelper-buildrpm-$$";
+		mkdir $dir;
+		chdir $dir;
+
+		# clone the repo
+		my $ret = call_system ("git clone $reposource") &&
+			die "\"git clone $reposource\" failed.";
+
+		# we need the name of the project
+		opendir (DH, $dir);
+		while ( my $fn = readdir (DH)) {
+			if ($fn !~ /^\./) {
+				$project = $fn;
+			};
+		};
+		closedir (DH);
+		chdir ($dir . "/" . $project) ||
+			die "Failed to chdir to $dir/$project\n";
+
+	} else {
+
+		# use source in current directory.
+		my $nowdir = cwd;
+		$verbose && print STDERR "Using source in $nowdir\n";
+
+		$project = basename ($nowdir);
+	};
+
+	# Checkout the specified build
+	if (defined $buildtag) {
+		$verbose && print STDERR "Checking out build $buildtag\n";
+		call_system ("git checkout $buildtag");
+	};
+
+	$verbose && print STDERR "Cleaning up project $project\n";
+
+	# if it has a makefile, call "make distclean"
+	if ( -e "Makefile" || -e "makefile" ) {
+		call_system ("make distclean 2>&1 > /dev/null");
+	};
+
+	# if it's Eclipse, look for Release* and Debug* subdirectories.
+	opendir (DH, ".");
+	while (my $fn = readdir (DH)) {
+		if ( ($fn =~ /^Release/ && -d $fn) ||
+		     ($fn =~ /^Debug/ && -d $fn) ) {
+			chdir ($fn);
+			call_system ("make clean 2>&1 > /dev/null");
+			chdir ("..");
+		};
+	};
+
+	# get the current git version from "git describe"
+	open (F, "git describe|") || die "Unable to pipe from \"git describe\"";
+	$buildtag = <F>;
+	close (F);
+	chomp $buildtag;
+	if ($buildtag eq '') {
+		die ("source is not tagged properly, unable to build.\n");
+	};
+
+	# work up a version number
+	my $version = buildToVersion ($buildtag);
+
+	# build the SOURCE tar file
+	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/$project-$version.tar.gz";
+	call_system ("tar czf $tarfile --exclude $project.spec --exclude ".
+		"./.git .") && die "Failed to build $tarfile\n";
+
+	# copy the SPEC file over, setting version numbers.
+	open (FI, "$project.spec") || die "There is no $project.spec file in ".
+		"the source.\n";
+	open (FO, ">" . $ENV{'HOME'} . "/rpm/SPECS/$project.spec");
+
+	while (my $line = <FI>) {
+		# replace version number
+		if ($line =~ /^Version:/) {
+			$line = "Version: $version\n";
+		};
+		print FO $line;
+	};
+	close (FI);
+
+	# invoke rpmbuild
+	call_system ("rpmbuild -ba /rpm/SPEC/$project.spec") &&
+		die ("rpmbuild of $project.spec failed.\n");
+	
+
+	print "HABIS\n";
+
+	if (defined $reposource) {
+		# TODO: clean up $dir
+	};
+
+
+
+};
+
+
+
+# ========================================================================
+
+
+sub call_system { 
+
+	my ($cmd) = @_;
+
+	system ($cmd);
+	if ($? == -1) {
+		die ("Failed to execute \"$cmd\"\n");
+	}
+	elsif ( $? & 127) {
+		die ("Child \"$cmd\" died with signal %d, %s coredump\n",
+			($? & 127),  ($? & 128) ? 'with' : 'without'
+		);
+	}
+	else {
+		$verbose && printf "Child \"$cmd\" exited with %d\n", $? >> 8;
+	};
+
+	return $? >> 8;
+
+};
+
+
+# ========================================================================
+
+
+sub prepRPM {
+
+	$verbose && print STDERR "Writing " . $ENV{'HOME'}."/.rpmmacros\n";
+	open (F, "> " . $ENV{'HOME'} . "/.rpmmacros") || 
+		die "Failed to open " . $ENV{'HOME'} . "/.rpmmacros for writing.\n";
+	print F "%_topdir " . $ENV{'HOME'} . "/rpm\n";
+	print F "%_tmppath " . $ENV{'HOME'} . "/rpm/tmp\n";
+	# %distribution RedHat Linux 9
+	# %vendor RedHat
+	close (F);
+
+	$verbose && print STDERR "Writing " . $ENV{'HOME'}."/.rpmrc\n";
+	open (F, "> " . $ENV{'HOME'} . "/.rpmrc") ||
+		die "Failed to open " . $ENV{'HOME'} . "/.rpmrc for writing.\n";
+	print F "buildarchtranslate: i386: i386\n";
+	print F "buildarchtranslate: i486: i386\n";
+	print F "buildarchtranslate: i586: i386\n";
+	print F "buildarchtranslate: i686: i386\n";
+	print F "buildarchtranslate: athlon: i386\n";
+	close (F);
+
+	$verbose && print STDERR "Creating rpm folders\n";
+	foreach my $d (
+		$ENV{'HOME'} . "/rpm",
+		$ENV{'HOME'} . "/rpm/BUILD",
+		$ENV{'HOME'} . "/rpm/RPMS",
+		$ENV{'HOME'} . "/rpm/RPMS/athlon",
+		$ENV{'HOME'} . "/rpm/RPMS/i386",
+		$ENV{'HOME'} . "/rpm/RPMS/i486",
+		$ENV{'HOME'} . "/rpm/RPMS/i586",
+		$ENV{'HOME'} . "/rpm/RPMS/i686",
+		$ENV{'HOME'} . "/rpm/RPMS/noarch",
+		$ENV{'HOME'} . "/rpm/SOURCES",
+		$ENV{'HOME'} . "/rpm/SPECS",
+		$ENV{'HOME'} . "/rpm/SRPMS",
+		$ENV{'HOME'} . "/rpm/tmp",
+	) {
+		mkdir $d || die "Failed to mkdir $d\n";
+	};
+
+};
+
+# ========================================================================
+# Convert a build number, which may be something like B1234, or,if not
+# committed, like this: build-162-3-g1f2bc39, into something like this:
+# x.yyyypzzz.
+# ------------------------------------------------------------------------
+
+sub buildToVersion {
+
+	my ($build) = @_;
+
+	if (my ($a, $b, $c) = $build =~ /^B(\d+)-(\d+)-(.*+)$/) {
+		return "${a}.${b}p${c}";
+	} 
+	elsif (my ($a) = $build =~ /^B(\d+)/) {
+		return "${a}";
+	} 
+	else {
+		die "Unable to convert $build to a version number\n";
+	};
+
+}
