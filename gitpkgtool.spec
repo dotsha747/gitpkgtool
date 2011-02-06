@@ -21,13 +21,12 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 %setup -q
 
 %build
-# Empty section
+make
 
 %install
 rm -rf %{buildroot}
 mkdir -p %{buildroot}
-
-install -D gitpkgtool $RPM_BUILD_ROOT/usr/bin/gitpkgtool
+make install DESTDIR=$RPM_BUILD_ROOT
 
 %clean
 rm -rf %{buildroot}

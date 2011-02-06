@@ -23,6 +23,7 @@ use strict;
 use Getopt::Long;
 use Cwd;
 use File::Basename;
+use POSIX;
 
 my $helpflag = 0;
 my $debug = 0;
@@ -36,7 +37,9 @@ if (scalar (@ARGV) ==0 || $ARGV[0] eq 'help' || $ARGV[0] eq '--help') {
 								"  nexttag\n".
 								"  - tags the next build number\n".
 								"  buildrpm\n".
-								"  - builds rpm with specified build number.\n".
+								"  - builds rpm package file\n".
+								"  builddeb\n".
+								"  - builds deb package file\n".
 								"\n".
 								"run \"gitpkgtool <command> --help\" for further options\n\n";
 
@@ -340,6 +343,7 @@ sub buildrpm {
 	# list output 
 	$verbose && print STDERR " * Output:\n\n";
 	call_system ($findcmd);
+	$verbose && print STDERR "\n\n";
 
 
 
@@ -387,7 +391,7 @@ sub buildToVersion {
 	if (my ($a, $b, $c) = $build =~ /^B(\d+)-(\d+)-(.*+)$/) {
 		return "${a}.${b}.${c}";
 	} 
-	elsif (my ($a) = $build =~ /^B(\d+)/) {
+	elsif (my ($a) = $build =~ /^B(\d+)$/) {
 		return "${a}";
 	} 
 	else {
@@ -523,9 +527,58 @@ sub builddeb {
 		die "Failed to build $tarfile\n";
 	$verbose && print STDERR " * source tarball is in $tarfile\n";
 
+	# extract back the tarball into the build dir
+	$verbose && print STDERR " * extracting tarball to build dir\n";
+	call_system ("tar xp". ($debug ? "v" :"") ."fC $tarfile " . 
+		$ENV{'HOME'}. "/deb");
+
 	# copy over debian subfolder
-	mkdir $ENV{'HOME'} . "/deb/$project-$version";
 	call_system ("cp -a debian " . $ENV{'HOME'}. "/deb/$project-$version/");
 
+	# grep maintainer email from debian/control
+	my $maintainer = "nobody\@nobody.org";
+	my $controlfile = $ENV{'HOME'} . "/deb/$project-$version/debian/control";
+	open (F, $controlfile) || die "Failed to open $controlfile\n";
+	while ( my $line = <F>) {
+		if ($line =~ /^Maintainer:\s(.*)$/) {
+			$maintainer = $1;
+		};
+	};
+	close (F);
+
+	# overwrite a changelog with current version
+	my $changelogfile = $ENV{'HOME'} . "/deb/$project-$version/debian/changelog";
+	open (F, "> $changelogfile") || die "Failed to open $changelogfile ".
+		"for writing\n";
+	print F "$project ($version) unstable; urgency=low\n\n";
+	print F "  * Release $buildtag via gitpkgtool\n\n";
+	print F " -- $maintainer  " . strftime ("%a, %d %b %Y %H:%M:%S %z",
+		localtime()) . "\n";
+	close (F);
+
+	$verbose && print STDERR " * Building deb source and binary package\n";
+	chdir ($ENV{'HOME'} . "/deb/$project-$version");
+	call_system ("dpkg-buildpackage");
+
+
+	# scp
+	my $findcmd = "find " . $ENV{'HOME'} . "/deb -maxdepth 1 -type f ".
+		"-name \*.deb";
+	if ($scp) {
+		my $filelist;
+		open (F, "$findcmd |");
+		while (my $line = <F>) {
+			chomp $line;
+			$filelist .= $line . " ";
+		};
+		my $scpcmd = "scp " . ($debug ? " " : "-q ") . "$filelist $scp";
+		$verbose && print STDERR " * scp'ing files to $scp\n";
+		call_system ($scpcmd);
+	};
+	
+	# list output 
+	$verbose && print STDERR " * Output:\n\n";
+	call_system ($findcmd);
+	$verbose && print STDERR "\n\n";
 
 }
