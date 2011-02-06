@@ -180,6 +180,7 @@ sub buildrpm {
 		$ENV{'HOME'} . "/rpm/SRPMS",
 		$ENV{'HOME'} . "/rpm/tmp",
 		$ENV{'HOME'} . "/rpm/git",
+		$ENV{'HOME'} . "/rpm/tar",
 	) {
 		$debug && print STDERR "   Creating folder $d\n";
 		call_system ("rm -rf $d");
@@ -260,12 +261,18 @@ sub buildrpm {
 	my $version = buildToVersion ($buildtag);
 	$verbose && print STDERR " * building $buildtag as version $version\n";
 
+	# copy into a folder of $project-$version 
+	mkdir $ENV{'HOME'} . "/rpm/tar/$project-$version";
+	call_system ("tar czf - --exclude ".
+		"./$project.spec --exclude ./.git --exclude ./debian . | tar xpzfC ".
+		"- " . $ENV{'HOME'} . "/rpm/tar/$project-$version") &&
+		die "Failed to build temporary tarfile";
+
 	# build the SOURCE tar file
 	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/$project-$version.tar.gz";
-	call_system ("tar c" . ($debug ? "v":"") . "zf $tarfile --exclude ".
-		"$project.spec --exclude ./.git --transform ".
-		"\"s#^#$project-$version/#\" *") && 
-		die "Failed to build $tarfile\n";
+	call_system ("tar c" . ($debug ? "v":"") . "zfC $tarfile ".
+		$ENV{'HOME'} . "/rpm/tar $project-$version") 
+		&& die "Failed to build $tarfile\n";
 	$verbose && print STDERR " * source tarball is in $tarfile\n";
 
 	# copy the SPEC file over, setting version numbers.
@@ -388,7 +395,7 @@ sub buildToVersion {
 
 	my ($build) = @_;
 
-	if (my ($a, $b, $c) = $build =~ /^B(\d+)-(\d+)-(.*+)$/) {
+	if (my ($a, $b, $c) = $build =~ /^B(\d+)-(\d+)-(.+)$/) {
 		return "${a}.${b}.${c}";
 	} 
 	elsif (my ($a) = $build =~ /^B(\d+)$/) {
@@ -519,12 +526,19 @@ sub builddeb {
 
 	$verbose && print STDERR " * Building $buildtag as version $version\n";
 
+	# copy into a folder of $project-$version 
+	mkdir $ENV{'HOME'} . "/deb/tar";
+	mkdir $ENV{'HOME'} . "/deb/tar/$project-$version";
+	call_system ("tar czf - --exclude ".
+		"./$project.spec --exclude ./.git --exclude ./debian . | tar xpzfC ".
+		"- " . $ENV{'HOME'} . "/deb/tar/$project-$version") &&
+		die "Failed to build temporary tarfile";
+
 	# build the SOURCE tar file
 	my $tarfile = $ENV{'HOME'} . "/deb/${project}_${version}.orig.tar.gz";
-	call_system ("tar c" . ($debug ? "v":"") . "zf $tarfile --exclude ".
-		"debian --transform ".
-		"\"s#^#$project-$version/#\" *") && 
-		die "Failed to build $tarfile\n";
+	call_system ("tar c" . ($debug ? "v":"") . "zfC $tarfile ".
+		$ENV{'HOME'} . "/deb/tar $project-$version") 
+		&& die "Failed to build $tarfile\n";
 	$verbose && print STDERR " * source tarball is in $tarfile\n";
 
 	# extract back the tarball into the build dir
