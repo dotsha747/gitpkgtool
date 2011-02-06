@@ -83,14 +83,14 @@ sub buildrpm {
 	if (defined $reposource) {
 		
 		# user specified a repo to pull frm
-		$verbose && print STDERR "Cloning $reposource\n";
+		$verbose && print STDERR " * Cloning $reposource\n";
 
 		$dir = "/tmp/githelper-buildrpm-$$";
 		mkdir $dir;
 		chdir $dir;
 
 		# clone the repo
-		my $ret = call_system ("git clone $reposource") &&
+		my $ret = call_system ("git clone -q $reposource") &&
 			die "\"git clone $reposource\" failed.";
 
 		# we need the name of the project
@@ -108,18 +108,18 @@ sub buildrpm {
 
 		# use source in current directory.
 		my $nowdir = cwd;
-		$verbose && print STDERR "Using source in $nowdir\n";
+		$verbose && print STDERR " * Using source in $nowdir\n";
 
 		$project = basename ($nowdir);
 	};
 
 	# Checkout the specified build
 	if (defined $buildtag) {
-		$verbose && print STDERR "Checking out build $buildtag\n";
+		$verbose && print STDERR " * Checking out build $buildtag\n";
 		call_system ("git checkout $buildtag");
 	};
 
-	$verbose && print STDERR "Cleaning up project $project\n";
+	$verbose && print STDERR " * Cleaning up project $project\n";
 
 	# if it has a makefile, call "make distclean"
 	if ( -e "Makefile" || -e "makefile" ) {
@@ -148,27 +148,33 @@ sub buildrpm {
 
 	# work up a version number
 	my $version = buildToVersion ($buildtag);
+	$verbose && print STDERR " * building $buildtag as $version\n";
 
 	# build the SOURCE tar file
 	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/$project-$version.tar.gz";
 	call_system ("tar czf $tarfile --exclude $project.spec --exclude ".
 		"./.git .") && die "Failed to build $tarfile\n";
+	$verbose && print STDERR " * source tarball is in $tarfile\n";
 
 	# copy the SPEC file over, setting version numbers.
 	open (FI, "$project.spec") || die "There is no $project.spec file in ".
 		"the source.\n";
 	open (FO, ">" . $ENV{'HOME'} . "/rpm/SPECS/$project.spec");
-
 	while (my $line = <FI>) {
 		# replace version number
 		if ($line =~ /^Version:/) {
 			$line = "Version: $version\n";
 		};
+		print "[$line]";
 		print FO $line;
 	};
 	close (FI);
+	close (FO);
+	$verbose && print STDERR " * RPM SPEC is in " . $ENV{'HOME'} . 
+		"/rpm/SPECS/$project.spec\n";
 
 	# invoke rpmbuild
+	$verbose && print STDERR " * Invoking rpmbuild ...\n";
 	call_system ("rpmbuild -ba /rpm/SPEC/$project.spec") &&
 		die ("rpmbuild of $project.spec failed.\n");
 	
@@ -202,7 +208,7 @@ sub call_system {
 		);
 	}
 	else {
-		$verbose && printf "Child \"$cmd\" exited with %d\n", $? >> 8;
+		# $verbose && printf "Child \"$cmd\" exited with %d\n", $? >> 8;
 	};
 
 	return $? >> 8;
@@ -234,7 +240,7 @@ sub prepRPM {
 	print F "buildarchtranslate: athlon: i386\n";
 	close (F);
 
-	$verbose && print STDERR "Creating rpm folders\n";
+	$verbose && print STDERR " * Creating rpm folders\n";
 	foreach my $d (
 		$ENV{'HOME'} . "/rpm",
 		$ENV{'HOME'} . "/rpm/BUILD",
