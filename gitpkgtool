@@ -62,13 +62,13 @@ sub nexttag {
 	shift @ARGV;
 
 	my $verbose = 0;
-	my $push = 1;
+	my $dontpush = 0;
 
 	my ($opt) = GetOptions (
 		'help'		=> \$helpflag,
 		'verbose' => \$verbose,
 		'debug'		=> \$debug,
-		'push'	=> 	\$push
+		'dontpush'	=> 	\$dontpush
 	);
 
 	if (!$opt || $helpflag) {
@@ -93,7 +93,7 @@ sub nexttag {
 		($verbose ? "Latest is B$nowver, " : "");
 	call_system ("git tag -a -m \"build B$nextver\" B$nextver");
 
-	if ($push) {
+	if (! $dontpush) {
 		call_system ("git push --tags");
 	};
 
