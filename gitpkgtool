@@ -53,7 +53,9 @@ elsif ($ARGV[0] eq 'buildrpm') {
 
 elsif ($ARGV[0] eq 'builddeb') {
 	builddeb ();
-}
+} else {
+	print STDERR "Unknown command \"" . $ARGV[0] . "\"\n";
+};
 
 
 exit (0);
@@ -383,7 +385,7 @@ sub buildToVersion {
 	my ($build) = @_;
 
 	if (my ($a, $b, $c) = $build =~ /^B(\d+)-(\d+)-(.*+)$/) {
-		return "${a}.${b}p${c}";
+		return "${a}.${b}.${c}";
 	} 
 	elsif (my ($a) = $build =~ /^B(\d+)/) {
 		return "${a}";
@@ -424,6 +426,12 @@ sub builddeb {
 		exit (1);
 	};
 
+	# choose somewhere far away to work in
+	$verbose && print STDERR " * Preparing work area " . $ENV{'HOME'}."/deb\n";
+	call_system ("rm -rf " . $ENV{'HOME'} . "/deb");
+	mkdir $ENV{'HOME'} . "/deb";
+	
+
 	my ($buildtag, $reposource) = @ARGV;
 
 	my $dir = ".";
@@ -432,7 +440,7 @@ sub builddeb {
 	if (defined $reposource) {
 		
 		# user specified a repo to pull frm
-		$dir = $ENV{'HOME'} . "/rpm/git";
+		$dir = $ENV{'HOME'} . "/deb/git";
 		$verbose && print STDERR " * Cloning $reposource to $dir\n";
 
 		mkdir $dir;
@@ -460,7 +468,9 @@ sub builddeb {
 		$verbose && print STDERR " * Using source in $nowdir\n";
 
 		$project = basename ($nowdir);
+
 	};
+
 
 	# Checkout the specified build
 	if ($buildtag ne '') {
@@ -495,17 +505,27 @@ sub builddeb {
 		die ("source is not tagged properly, unable to build.\n");
 	};
 
-	# work up a version number
+	# debianize the project name
+	$project = lc $project;
+	$project =~ s/_//;
+	$verbose && print STDERR " * Debianized project name to $project\n";
+
+	# work up a version number 
 	my $version = buildToVersion ($buildtag);
-	$verbose && print STDERR " * building $buildtag as version $version\n";
+
+	$verbose && print STDERR " * Building $buildtag as version $version\n";
 
 	# build the SOURCE tar file
-	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/$project-$version.tar.gz";
+	my $tarfile = $ENV{'HOME'} . "/deb/${project}_${version}.orig.tar.gz";
 	call_system ("tar c" . ($debug ? "v":"") . "zf $tarfile --exclude ".
-		"$project.spec --exclude ./.git --transform ".
+		"debian --transform ".
 		"\"s#^#$project-$version/#\" *") && 
 		die "Failed to build $tarfile\n";
 	$verbose && print STDERR " * source tarball is in $tarfile\n";
+
+	# copy over debian subfolder
+	mkdir $ENV{'HOME'} . "/deb/$project-$version";
+	call_system ("cp -a debian " . $ENV{'HOME'}. "/deb/$project-$version/");
 
 
 }
