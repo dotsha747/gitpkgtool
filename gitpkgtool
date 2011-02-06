@@ -16,6 +16,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# For the latest source, see http://home.abubakar.net/pubdocs
 
 use strict;
 use Getopt::Long;
@@ -47,7 +49,12 @@ elsif ($ARGV[0] eq 'nexttag') {
 
 elsif ($ARGV[0] eq 'buildrpm') {
 	buildrpm ();
-};
+}
+
+elsif ($ARGV[0] eq 'builddeb') {
+	builddeb ();
+}
+
 
 exit (0);
 
@@ -384,5 +391,121 @@ sub buildToVersion {
 	else {
 		die "Unable to convert $build to a version number\n";
 	};
+
+}
+
+
+# ========================================================================
+# build deb
+# ------------------------------------------------------------------------
+
+
+sub builddeb {
+
+	shift @ARGV;
+
+	my $verbose = 0;
+	my $scp;
+
+	my ($opt) = GetOptions (
+		'help'	=> \$helpflag,
+		'verbose' => \$verbose,
+		'debug' => \$debug,
+		'scp=s' => \$scp
+	);
+
+	if (!$opt || $helpflag) {
+		print STDERR 
+			"\ngitpkgtool builddeb [--options] <tag> [source]\n".
+			"\nOptions:\n".
+			"  --verbose - emits running commentary\n".
+			"  --debug - show details of external commands\n".
+			"  --scp <dir> - scp the RPMS to <dir>\n";
+		exit (1);
+	};
+
+	my ($buildtag, $reposource) = @ARGV;
+
+	my $dir = ".";
+	my $project = "";
+
+	if (defined $reposource) {
+		
+		# user specified a repo to pull frm
+		$dir = $ENV{'HOME'} . "/rpm/git";
+		$verbose && print STDERR " * Cloning $reposource to $dir\n";
+
+		mkdir $dir;
+		chdir $dir;
+
+		# clone the repo
+		my $ret = call_system ("git clone -q $reposource") &&
+			die "\"git clone $reposource\" failed.";
+
+		# we need the name of the project
+		opendir (DH, $dir);
+		while ( my $fn = readdir (DH)) {
+			if ($fn !~ /^\./) {
+				$project = $fn;
+			};
+		};
+		closedir (DH);
+		chdir ($dir . "/" . $project) ||
+			die "Failed to chdir to $dir/$project\n";
+
+	} else {
+
+		# use source in current directory.
+		my $nowdir = cwd;
+		$verbose && print STDERR " * Using source in $nowdir\n";
+
+		$project = basename ($nowdir);
+	};
+
+	# Checkout the specified build
+	if ($buildtag ne '') {
+		$verbose && print STDERR " * Checking out build $buildtag\n";
+		call_system ("git checkout -q $buildtag");
+	};
+
+	$verbose && print STDERR " * Cleaning project source $project\n";
+
+	# if it has a makefile, call "make distclean"
+	if ( -e "Makefile" || -e "makefile" ) {
+		call_system ("make distclean 2>&1 > /dev/null");
+	};
+
+	# if it's Eclipse, look for Release* and Debug* subdirectories.
+	opendir (DH, ".");
+	while (my $fn = readdir (DH)) {
+		if ( ($fn =~ /^Release/ && -d $fn) ||
+		     ($fn =~ /^Debug/ && -d $fn) ) {
+			chdir ($fn);
+			call_system ("make clean 2>&1 > /dev/null");
+			chdir ("..");
+		};
+	};
+
+	# get the current git version from "git describe"
+	open (F, "git describe|") || die "Unable to pipe from \"git describe\"";
+	$buildtag = <F>;
+	close (F);
+	chomp $buildtag;
+	if ($buildtag eq '') {
+		die ("source is not tagged properly, unable to build.\n");
+	};
+
+	# work up a version number
+	my $version = buildToVersion ($buildtag);
+	$verbose && print STDERR " * building $buildtag as version $version\n";
+
+	# build the SOURCE tar file
+	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/$project-$version.tar.gz";
+	call_system ("tar c" . ($debug ? "v":"") . "zf $tarfile --exclude ".
+		"$project.spec --exclude ./.git --transform ".
+		"\"s#^#$project-$version/#\" *") && 
+		die "Failed to build $tarfile\n";
+	$verbose && print STDERR " * source tarball is in $tarfile\n";
+
 
 }
