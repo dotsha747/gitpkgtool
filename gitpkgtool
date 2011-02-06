@@ -150,6 +150,7 @@ sub buildrpm {
 		$ENV{'HOME'} . "/rpm/SPECS",
 		$ENV{'HOME'} . "/rpm/SRPMS",
 		$ENV{'HOME'} . "/rpm/tmp",
+		$ENV{'HOME'} . "/rpm/git",
 	) {
 		$debug && print STDERR "   Creating folder $d\n";
 		call_system ("rm -rf $d");
@@ -163,9 +164,9 @@ sub buildrpm {
 	if (defined $reposource) {
 		
 		# user specified a repo to pull frm
-		$verbose && print STDERR " * Cloning $reposource\n";
+		$dir = $ENV{'HOME'} . "/rpm/git";
+		$verbose && print STDERR " * Cloning $reposource to $dir\n";
 
-		$dir = "/tmp/githelper-buildrpm-$$";
 		mkdir $dir;
 		chdir $dir;
 
