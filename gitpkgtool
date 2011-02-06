@@ -73,7 +73,7 @@ sub nexttag {
 
 	if (!$opt || $helpflag) {
 		print STDERR 
-			"\ngitpkgtool nexttag [--verbose] [--debug]\n".
+			"\ngitpkgtool nexttag [--dontpush] [--verbose] [--debug]\n".
 			"\ntags the current repo with a sequence in the form Bnnnn\n\n";
 		exit (1);
 	};
