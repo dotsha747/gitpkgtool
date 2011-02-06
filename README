@@ -1,0 +1,204 @@
+INTRODUCTION
+
+gitpkgtool is a utility for tagging build version numbers in a git 
+repository, and also packaging builds into .rpm or .deb formats.
+
+OVERVIEW
+
+A typical development cycle would look like this:
+
+  git clone <source repo>
+  ... work on changes ...
+  ... test changes ...
+  ... work on changes ...
+  ... test changes ...
+  ... ready to release ?
+  git commit -a
+  ... tag the current branch with the next build number
+  gitpkgtool nexttag
+  ... build an rpm file out of the current build
+  gitpkgtool buildrpm
+  ... or build a deb file
+  gitpkgtool builddeb
+
+it can also build packages right out of a repository, given a
+tag:
+
+  ... build a rpm of build 1022
+  gitpkgtool buildrpm B1022 <source repo>
+  ... build a deb of build 1022
+  gitpkgtool builddeb B1022 <source repo>
+
+
+INSTALLATION
+
+You can download the latest source snapshot for gitpkgtool from
+http://home.abubakar.net/gitpub/?p=gitpkgtool;a=summary, and install 
+it directly:
+
+  tar xzvf gitpkgtool-bNNNNNN.tar.gz
+  cd gitpkgtool-bNNNNNN
+  sudo make install
+
+Or you can have gitpkgtool package itself (for .deb):
+
+  git clone http://home.abubakar.net/gitpub/gitpkgtool
+  cd gitpkgtool
+  ./gitpkgtool buildrpm
+  sudo rpm -Uvh ~/rpm/RPMS/i386/gitpkgtool-N.i386.rpm
+
+Or this way (for .deb):
+
+  git clone http://home.abubakar.net/gitpub/gitpkgtool
+  cd gitpkgtool
+  ./gitpkgtool builddeb
+  dpkg --install  ~/deb/gitpkgtool_N_i386.deb
+
+
+MORE ON TAGGING
+
+"gitpkgtool nexttag" looks for a tags labelled "Bn" where n is a 
+sequential number. It takes the highest number, adds one to it, and 
+tags the current repo HEAD with that tag.
+
+You can see the list of tags already created using "git tag".
+
+By default, it does a "git push -tag" to push the latest commits and 
+tags to your origin. If you don't want to do this, or don't have an 
+origin setup, you can skip it by running:
+  
+  gitpkgtool nexttag --dontpush
+
+
+SETTING UP YOUR SOURCE FOR PACKAGING
+
+Both .rpm and .deb packaging are best served by a working Makefile
+in the root of your project source. The Makefile should respond
+to the following targets:
+
+  (default) - compile your source code into binary. 
+
+  test      - run tests on your compiled binaries.
+
+  distclean - removes all non-source files.
+
+  install   - installs the binaries into a root hierarchy, prefixed by
+              the Makefile variable $(DESTDIR).
+
+Refer to the Makefile in the gitpkgtool source for a basic example.
+
+
+SETTING UP YOUR SOURCE TO BUILD RPMs
+
+You will need to create a PROJECT.spec file in the root directory of
+your source, where PROJECT is the name of your project (based on the
+directory your source is in).
+
+The .spec file is a standard one used by the rpmbuild script, with
+the following exceptions:
+
+  * The "Version:" value should be left blank
+  * The "Source:" value should be left blank
+  * the "%changelog" should be empty
+
+These are automatically filled in by gitpkgtool when building a .rpm
+file.
+
+Refer to the gitpkgtool.spec file in the gitpkgtool source code for
+a minimal example of a .spec file. 
+
+Add your spec file to git:
+
+	git add PROJECT.spec
+	git commit -a
+
+And build your .rpm file as follows:
+
+	gitpkgtool buildrpm 
+
+
+SETTING UP YOUR SOURCE TO BUILD DEBs
+
+To build .deb packages, you'll need a debian subdirectory created
+under your source folder with some files. You can use the dh_make
+helper script to create it:
+
+  cd $project
+  dh_make -n -s -e your@email.address -p $projectname_1
+
+Where $project is the root directory of your source code, and 
+$projectname is the name of your project (no spaces, or dashes,
+or underscores, and all lower case).
+
+It should display something like the following:
+
+  Maintainer name : shahada abubakar
+  Email-Address : shahada@abubakar.net 
+  Date        : Sun, 06 Feb 2011 12:25:27 +0800
+  Package Name   : gitpkgtool
+  Version     : 1
+  License     : gpl3
+  Using dpatch   : no
+  Type of Package : Single
+  Hit <enter> to confirm:
+
+Once you hit enter, you should have a lot of files under the 
+debian subdirectory. For a basic .deb, you don't need most of
+them, so remove them:
+
+  rm -f debian/README* debian/*ex debian/*EX
+
+Next, edit the debian/control file, and fill in the fields.
+These fields are described here: 
+
+  http://www.debian.org/doc/debian-policy/ch-controlfields.html#s-f-Section
+
+From the sample, you'll want to edit the following:
+
+ * Section. Refer to 
+
+  http://www.debian.org/doc/debian-policy/ch-controlfields.html#s-f-Section
+  
+  and  
+  
+  http://www.debian.org/doc/debian-policy/ch-archive.html#s-subsections. 
+  
+
+ * HomePage: if you have a homepage for this package. 
+
+ * Vcs-Git and VCs-Browser: if git repo is useful to others. 
+
+Or just leave them out altogether.
+
+You can also list other packages that this package will be dependent on 
+under the Depends: section. Refer to 
+
+  http://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
+
+for details.
+
+Next, take a look at debian/copyright and edit it accordingly.
+
+This is a good point to add and commit the debian folder to git:
+
+  git add debian
+	git commit -a
+
+Now, you can build a .deb using:
+
+  gitpkgtool builddep
+
+
+COMMON OPTIONS TO BUILDRPM AND BUILDDEB
+
+The following options are common to buildrpm and builddeb:
+
+  --verbose : gives a running commentary of what it is doing.
+
+  --debug   : shows the actual commands being executed and the 
+              return values. This is useful when something in
+              the build process breaks.
+
+  --scp x   : Copies the resulting .deb or .rpm files to x using
+              scp. x should be a full scp address, e.g. 
+              user@host:/dir.
