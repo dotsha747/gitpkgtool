@@ -202,3 +202,25 @@ The following options are common to buildrpm and builddeb:
   --scp x   : Copies the resulting .deb or .rpm files to x using
               scp. x should be a full scp address, e.g. 
               user@host:/dir.
+
+
+PUBLISHING THE BUILT PACKAGES
+
+gitpkgtool can also automate publishing the produced files to a remote 
+server over ssh. The following parameters set where the packages get 
+published to (you can define these:
+
+	--pub_cmd=ssh             
+	--pub_dir=user@host:/data/dir
+
+If the above parameters are not specified, their values are taken from
+the following environment variables:
+
+  GITPKGTOOL_PUB_CMD
+	GITPKGTOOL_PUB_DIR
+
+To tell gitpkgtool to publish the packages from a build, add the 
+--pub parameter. This causes non-source packages to be published.
+To publish source packages as well, use --pubsrc.
+
+
