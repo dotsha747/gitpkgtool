@@ -153,7 +153,7 @@ sub buildrpm {
 			"  --debug - show details of external commands\n".
 			"  --pub_cmd - command to exec when publishing\n".
 			"  --pub_dir - user\@host:/dir of scp dest for publishing\n".
-			"  --pub     - publish the Binary RPMS\n";
+			"  --pub     - publish the Binary RPMS\n".
 			"  --pubsrc  - publish the Binary & Source RPMS\n";
 		exit (1);
 	};
@@ -462,7 +462,8 @@ sub builddeb {
 			"  --debug - show details of external commands\n".
 			"  --pub_cmd - command to exec when publishing\n".
 			"  --pub_dir - user\@host:/dir of ssh dest for publishing\n".
-			"  --pub     - publish the RPMS\n";
+			"  --pub     - publish the Binary RPMS\n".
+			"  --pubsrc  - publish the Binary & Source RPMS\n";
 		exit (1);
 	};
 
@@ -637,13 +638,20 @@ sub buildrpmsource {
 	shift @ARGV;
 
 	my $verbose = 0;
-	my $scp;
+
+	my $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
+	my $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
+	my $pub     = 0;
+	my $pubsrc  = 0;
 
 	my ($opt) = GetOptions (
 		'help'	=> \$helpflag,
 		'verbose' => \$verbose,
 		'debug' => \$debug,
-		'scp=s' => \$scp
+		'pub_cmd=s' => \$pub_cmd,
+		'pub_dir=s' => \$pub_dir,
+		'pub' => \$pub,
+		'pubsrc' => \$pubsrc
 	);
 
 	if (!$opt || $helpflag) {
@@ -652,7 +660,10 @@ sub buildrpmsource {
 			"\nOptions:\n".
 			"  --verbose - emits running commentary\n".
 			"  --debug - show details of external commands\n".
-			"  --scp <dir> - scp the RPMS to <dir>\n";
+			"  --pub_cmd - command to exec when publishing\n".
+			"  --pub_dir - user\@host:/dir of scp dest for publishing\n".
+			"  --pub     - publish the Binary RPMS\n".
+			"  --pubsrc  - publish the Binary & Source RPMS\n";
 		exit (1);
 	};
 
@@ -827,17 +838,19 @@ sub buildrpmsource {
 		die ("rpmbuild of $project.spec failed.\n");
 
 	# scp
-	my $findcmd = "find " . $ENV{'HOME'} . "/rpm -type f -name \*.rpm";
-	if ($scp) {
+	my $findcmd = "find " . $ENV{'HOME'} . "/rpm -type f -name \*.rpm " .
+		($pub ? " ! -name \\*src.rpm" : "");
+	if ($pub || $pubsrc) {
 		my $filelist;
 		open (F, "$findcmd |");
 		while (my $line = <F>) {
 			chomp $line;
 			$filelist .= $line . " ";
 		};
-		my $scpcmd = "scp " . ($debug ? " " : "-q ") . "$filelist $scp";
-		$verbose && print STDERR " * scp'ing files to $scp\n";
-		call_system ($scpcmd);
+		my $pubcmd = $pub_cmd . ' ' . ($debug ? " " : "-q ") . "$filelist ".
+			$pub_dir;
+		$verbose && print STDERR " * Publishing files ...\n";
+		call_system ($pubcmd);
 	};
 	
 	# list output 
