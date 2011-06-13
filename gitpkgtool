@@ -351,8 +351,6 @@ sub buildrpm {
 	call_system ("rpmbuild -ba " . ($debug ? "": "--quiet ") . "$specfile") &&
 		die ("rpmbuild of $project.spec failed.\n");
 
-	print "pub=$pub pubsrc=$pubsrc\n";
-
 	# scp
 	my $findcmd = "find " . $ENV{'HOME'} . "/rpm -type f -name \*.rpm " .
 		($pub ? " ! -name \\*src.rpm" : "");
@@ -366,7 +364,6 @@ sub buildrpm {
 		my $pubcmd = $pub_cmd . ' ' . ($debug ? " " : "-q ") . "$filelist ".
 			$pub_dir;
 		$verbose && print STDERR " * Publishing files ...\n";
-		print "GOT HERE [$pubcmd]\n";
 		call_system ($pubcmd);
 	};
 	
@@ -620,7 +617,6 @@ sub builddeb {
 		my $pubcmd = $pub_cmd . ' ' . ($debug ? " " : "-q ") . "$filelist ".
 			$pub_dir;
 		$verbose && print STDERR " * Publishing files ...\n";
-		print "GOT HERE [$pubcmd]\n";
 		call_system ($pubcmd);
 	};
 	
