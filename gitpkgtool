@@ -130,6 +130,7 @@ sub buildrpm {
 
 	my $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
 	my $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
+	my $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
 	my $pub     = 0;
 	my $pubsrc  = 0;
 
@@ -141,6 +142,7 @@ sub buildrpm {
 		'debug' => \$debug,
 		'pub_cmd=s' => \$pub_cmd,
 		'pub_dir=s' => \$pub_dir,
+		'pub_postexec=s' => \$pub_postexec,
 		'pub' => \$pub,
 		'pubsrc' => \$pubsrc
 	);
@@ -153,6 +155,7 @@ sub buildrpm {
 			"  --debug - show details of external commands\n".
 			"  --pub_cmd - command to exec when publishing\n".
 			"  --pub_dir - user\@host:/dir of scp dest for publishing\n".
+			"  --pub_postexec - execute command after publishing\n".
 			"  --pub     - publish the Binary RPMS\n".
 			"  --pubsrc  - publish the Binary & Source RPMS\n";
 		exit (1);
@@ -365,6 +368,11 @@ sub buildrpm {
 			$pub_dir;
 		$verbose && print STDERR " * Publishing files ...\n";
 		call_system ($pubcmd);
+
+		if (defined $pub_postexec) {
+			$verbose && print STDERR " * Executing post-publish script ...\n";
+			call_system ($pub_postexec);
+		}
 	};
 	
 	# list output 
@@ -441,6 +449,7 @@ sub builddeb {
 
 	my $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
 	my $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
+	my $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
 	my $pub     = 0;
 	my $pubsrc  = 0;
 
@@ -450,6 +459,7 @@ sub builddeb {
 		'debug' => \$debug,
 		'pub_cmd=s' => \$pub_cmd,
 		'pub_dir=s' => \$pub_dir,
+		'pub_postexec=s' => \$pub_postexec,
 		'pub' => \$pub,
 		'pubsrc' => \$pubsrc
 	);
@@ -462,6 +472,7 @@ sub builddeb {
 			"  --debug - show details of external commands\n".
 			"  --pub_cmd - command to exec when publishing\n".
 			"  --pub_dir - user\@host:/dir of ssh dest for publishing\n".
+			"  --pub_postexec - execute command after publishing\n".
 			"  --pub     - publish the Binary RPMS\n".
 			"  --pubsrc  - publish the Binary & Source RPMS\n";
 		exit (1);
@@ -619,6 +630,11 @@ sub builddeb {
 			$pub_dir;
 		$verbose && print STDERR " * Publishing files ...\n";
 		call_system ($pubcmd);
+
+		if (defined $pub_postexec) {
+			$verbose && print STDERR " * Executing post-publish script ...\n";
+			call_system ($pub_postexec);
+		}
 	};
 	
 	# list output 
@@ -641,6 +657,7 @@ sub buildrpmsource {
 
 	my $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
 	my $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
+	my $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
 	my $pub     = 0;
 	my $pubsrc  = 0;
 
@@ -650,6 +667,7 @@ sub buildrpmsource {
 		'debug' => \$debug,
 		'pub_cmd=s' => \$pub_cmd,
 		'pub_dir=s' => \$pub_dir,
+		'pub_postexec=s' => \$pub_postexec,
 		'pub' => \$pub,
 		'pubsrc' => \$pubsrc
 	);
@@ -662,6 +680,7 @@ sub buildrpmsource {
 			"  --debug - show details of external commands\n".
 			"  --pub_cmd - command to exec when publishing\n".
 			"  --pub_dir - user\@host:/dir of scp dest for publishing\n".
+			"  --pub_postexec - execute command after publishing\n".
 			"  --pub     - publish the Binary RPMS\n".
 			"  --pubsrc  - publish the Binary & Source RPMS\n";
 		exit (1);
@@ -851,6 +870,11 @@ sub buildrpmsource {
 			$pub_dir;
 		$verbose && print STDERR " * Publishing files ...\n";
 		call_system ($pubcmd);
+
+		if (defined $pub_postexec) {
+			$verbose && print STDERR " * Executing post-publish script ...\n";
+			call_system ($pub_postexec);
+		}
 	};
 	
 	# list output 

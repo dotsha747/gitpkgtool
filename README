@@ -223,4 +223,13 @@ To tell gitpkgtool to publish the packages from a build, add the
 --pub parameter. This causes non-source packages to be published.
 To publish source packages as well, use --pubsrc.
 
+You can also optionally execute a command after the packages are
+published by using:
+
+  --pub_postexec=cmd
+
+or setting the environment variable:
+
+	GITPKGTOOL_PUB_POSTEXEC
+
 
