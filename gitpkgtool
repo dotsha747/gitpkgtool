@@ -92,14 +92,31 @@ sub nexttag {
 	if (!$opt || $helpflag) {
 		print STDERR 
 			"\ngitpkgtool nexttag [--dontpush] [--verbose] [--debug]\n".
-			"\ntags the current repo with a sequence in the form Bnnnn\n\n";
+			"\ntags the current repo with a sequence in the form (BRANCH-)nnnn\n\n";
 		exit (1);
 	};
+
+	# figure out current branch
+	open (F, "git branch| grep \"^\\*\\s\"|") || die 
+		"Cannot open pipe to git branch";
+	my $branch = <F>;
+	close (F);
+	chomp ($branch);
+	$branch =~ s/^\*\s//;
+	print "MY branch [$branch]\n";
+
+	# special case
+	if ($branch eq 'master') {
+		$branch = "B";
+	} else {
+		$branch .= "-";
+	}
 
 	my $nowver = 0;
 	open (F, "git tag|");
 	while ( my $line = <F>) {
-		if (my ($ver) = $line =~ /^B(\d+)$/) {
+		if (my ($ver) = $line =~ /^${branch}(\d+)$/) {
+			print "Found $line";
 			if ($ver > $nowver) {
 				$nowver = $ver;
 			};
@@ -107,9 +124,9 @@ sub nexttag {
 	};
 
 	my $nextver = $nowver + 1;
-	printf "%sTagging as B$nextver\n",
-		($verbose ? "Latest is B$nowver, " : "");
-	call_system ("git tag -a -m \"build B$nextver\" B$nextver");
+	printf "%sTagging as ${branch}${nextver}\n",
+		($verbose ? "Latest is ${branch}${nowver}, " : "");
+	call_system ("git tag -a -m \"build ${branch}${nextver}\" ${branch}${nextver}");
 
 	if (! $dontpush) {
 		call_system ("git push --tags");
