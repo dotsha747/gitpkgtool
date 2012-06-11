@@ -431,9 +431,16 @@ sub call_system {
 
 
 # ========================================================================
-# Convert a build number, which may be something like B1234, or,if not
-# committed, like this: build-162-3-g1f2bc39, into something like this:
-# x.yyyypzzz.
+# Convert a build number, which may be something like B(count), or
+# (branch)-(count).
+# If the branch has been committed to since the last tag, then it may
+# take the form B(count)-n-hex, or (branch)-(count)-n-hex.
+#
+# eg: dev-2-1-g14442f4
+#
+# We need to map this to (count).n.hex(.branch)
+# If branch is "B" (master branch) then we can leave it out.
+#
 # ------------------------------------------------------------------------
 
 sub buildToVersion {
@@ -446,6 +453,12 @@ sub buildToVersion {
 	elsif (my ($a) = $build =~ /^B(\d+)$/) {
 		return "${a}";
 	} 
+	elsif ( my ($a, $b, $c, $d) = $build =~ /^(\w+)-(\d+)-(\d+)-(.+)$/) {
+		return "${b}.${c}.${d}.${a}";
+	} 
+	elsif ( my ($a, $b, $c) = $build =~ /^(\w+)-(\d+)$/) {
+		return "${b}.${a}";
+	}
 	else {
 		die "Unable to convert $build to a version number\n";
 	};
