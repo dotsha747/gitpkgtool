@@ -35,7 +35,11 @@ if (scalar (@ARGV) ==0 || $ARGV[0] eq 'help' || $ARGV[0] eq '--help') {
 								"\n".
 								"Commands:\n".
 								"  nexttag\n".
-								"  - tags the next build number\n".
+								"  - tags the next build number [old style]\n".
+								"  nextversion\n".
+								"  - tags the next minor version number\n".
+								"  nextversionmajor\n".
+								"  - tags the next major version number\n".
 								"  buildrpm\n".
 								"  - builds rpm package file\n".
 								"  buildrpmsource\n".
@@ -62,6 +66,11 @@ elsif ($ARGV[0] eq 'buildrpmsource') {
 
 elsif ($ARGV[0] eq 'builddeb') {
 	builddeb ();
+}
+
+elsif ($ARGV[0] eq 'nextversion') {
+	nextversion();
+
 } else {
 	print STDERR "Unknown command \"" . $ARGV[0] . "\"\n";
 };
@@ -134,6 +143,103 @@ sub nexttag {
 
 };
 
+
+# ========================================================================
+# nextversion
+# tags the next minor version (replaces nexttag)
+# ------------------------------------------------------------------------
+
+sub nextversion {
+
+	shift @ARGV;
+
+	my $verbose = 0;
+	my $dontpush = 0;
+
+	my ($opt) = GetOptions (
+		'help'		=> \$helpflag,
+		'verbose' => \$verbose,
+		'debug'		=> \$debug,
+		'dontpush'	=> 	\$dontpush
+	);
+
+	# make sure we are on master branch
+	my $branch = getCurrentBranch();
+	if ($branch ne 'master') {
+		print STDERR "gitpkgtool: Not on master branch, please switch with \"git checkout master\"\n";
+		exit (1);
+	}
+
+	my ($major, $minor) = getLatestVersion();
+
+	if ($major == 0 && $minor == $0) {
+		$major = 1; 
+		$minor = 0;
+	} else {
+		$minor++;
+	};
+
+	printf "gitpkgtool: assigning next minor version V${major}-${minor}\n";
+
+	call_system ("git tag -a -m \"Version ${major}-${minor} assigned by gitpkgtool\" V${major}-${minor}");
+
+	print "You probably want to do this now:\n" .
+				"  git checkout dev; git merge --no-ff master\n\n";
+	
+	if (! $dontpush) {
+		call_system ("git push --tags");
+	};
+	exit (0);
+}
+
+# ========================================================================
+# nextversionmajor
+# tags the next major version (replaces nexttag)
+# ------------------------------------------------------------------------
+
+sub nextversionmajor {
+
+	shift @ARGV;
+
+	my $verbose = 0;
+	my $dontpush = 0;
+
+	my ($opt) = GetOptions (
+		'help'		=> \$helpflag,
+		'verbose' => \$verbose,
+		'debug'		=> \$debug,
+		'dontpush'	=> 	\$dontpush
+	);
+
+	# make sure we are on master branch
+	my $branch = getCurrentBranch();
+	if ($branch ne 'master') {
+		print STDERR "gitpkgtool: Not on master branch, please switch with \"git checkout master\"\n";
+		exit (1);
+	}
+
+	my ($major, $minor) = getLatestVersion();
+
+	if ($major == 0 && $minor == $0) {
+		$major = 1; 
+		$minor = 0;
+	} else {
+		$major++;
+		$minor=0;
+	};
+
+	printf "gitpkgtool: assigning next minor version V${major}-${minor}\n";
+
+	call_system ("git tag -a -m \"Version ${major}-${minor} assigned by gitpkgtool\" V${major}-${minor}");
+
+	print "You probably want to do this now:\n" .
+				"  git checkout dev; git merge --no-ff master\n\n";
+	
+	if (! $dontpush) {
+		call_system ("git push --tags");
+	};
+	exit (0);
+}
 
 # ========================================================================
 # build rpm
@@ -313,7 +419,9 @@ sub buildrpm {
 		&& die "Failed to build $tarfile\n";
 	$verbose && print STDERR " * source tarball is in $tarfile\n";
 
-	# copy the SPEC file over, setting version numbers.
+
+	# copy the SPEC file over, setting version numbers and editing
+	# other tags on the fly.
 	my $specfile = $ENV{'HOME'} . "/rpm/SPECS/$project.spec";
 	open (FO, "> $specfile");
 
@@ -327,6 +435,20 @@ sub buildrpm {
 		};
 		if ($line =~ /^Source:/) {
 			$line = "Source: $project-$version.tar.gz\n";
+		};
+
+		if ($line =~ /^Name:\s*(.*)\s*/) {
+			my $name = $1;
+			if ($name =~ /^(.*)\%branch\%/) {
+				$name = $1;
+				my $branch = getCurrentBranch ();
+				if ($branch eq 'master') {
+					$branch = '';
+				} else {
+					$branch = '_' . $branch;
+				};
+				$line = "Name:${name}${branch}\n";
+			};
 		};
 
 		if ($line =~ /^%changelog/) {
@@ -447,7 +569,15 @@ sub buildToVersion {
 
 	my ($build) = @_;
 
-	if (my ($a, $b, $c) = $build =~ /^B(\d+)-(\d+)-(.+)$/) {
+	# new style V tags
+
+	if (my ($a) = $build =~ /^V(.*)$/) {
+		$a =~ s/-/./g;
+		return "${a}";
+	}
+
+	# old style B tags
+	elsif (my ($a, $b, $c) = $build =~ /^B(\d+)-(\d+)-(.+)$/) {
 		return "${a}.${b}.${c}";
 	} 
 	elsif (my ($a) = $build =~ /^B(\d+)$/) {
@@ -462,6 +592,54 @@ sub buildToVersion {
 	else {
 		die "Unable to convert $build to a version number\n";
 	};
+
+}
+
+
+# ========================================================================
+# get the current branch name
+# ------------------------------------------------------------------------
+
+sub getCurrentBranch {
+
+	# figure out current branch
+	open (F, "git branch| grep \"^\\*\\s\"|") || die 
+		"Cannot open pipe to git branch";
+	my $branch = <F>;
+	close (F);
+	chomp ($branch);
+	$branch =~ s/^\*\s//;
+
+	return $branch;
+}
+
+
+# ========================================================================
+# gets latest version number from V{x}-{y} tags.
+# ------------------------------------------------------------------------
+
+sub getLatestVersion {
+
+	my $major = 0;
+	my $minor = 0;
+
+	# read in all the tags
+	open (F, "git tag| grep \"^V\" |") || die "Cannot open pipe to git tag";
+	while (my $tagline = <F>) {
+		#print "received $tagline\n";
+		my ($thisMajor, $thisMinor) = $tagline =~ /V(\d+)-(\d+)/;
+		if ($thisMajor > $major) {
+			$major = $thisMajor;
+		};
+		if ($thisMajor == $major &&
+		    $thisMinor > $minor) {
+			$minor = $thisMinor;
+		};
+		    
+	};
+	close (F);
+	#print "latest is $major.$minor\n";
+	return ($major, $minor);
 
 }
 

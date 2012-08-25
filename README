@@ -5,21 +5,35 @@ repository, and also packaging builds into .rpm or .deb formats.
 
 OVERVIEW
 
+READ: http://nvie.com/posts/a-successful-git-branching-model/
+
+Create a new project:
+  mkdir source
+	cd source
+	git init
+	... edit files ...
+	git add *
+	git commit -a -m "initial add"
+	gitpkgtool nextversion
+  
+Create dev branch:
+  git checkout -b dev master
+
+Either commit changes to dev branch directly, or create feature 
+branches and release branches, depending on how big the project
+is.
+
+Create a release:
+  git checkout master
+	git merge --no-ff dev OR git merge --no-ff feature_branch
+  gitpkgtool nextversion OR gitpkgtool nextversionmajor
+	gitpkgtool buildrpm OR gitpkgtool builddeb
+
+Prepare dev for next release:
+  git checkout dev; git merge --no-ff master
+
 A typical development cycle would look like this:
 
-  git clone <source repo>
-  ... work on changes ...
-  ... test changes ...
-  ... work on changes ...
-  ... test changes ...
-  ... ready to release ?
-  git commit -a
-  ... tag the current branch with the next build number
-  gitpkgtool nexttag
-  ... build an rpm file out of the current build
-  gitpkgtool buildrpm
-  ... or build a deb file
-  gitpkgtool builddeb
 
 it can also build packages right out of a repository, given a
 tag:
@@ -57,17 +71,16 @@ Or this way (for .deb):
 
 MORE ON TAGGING
 
-"gitpkgtool nexttag" looks for a tags labelled "Bn" where n is a 
-sequential number. It takes the highest number, adds one to it, and 
-tags the current repo HEAD with that tag.
-
-You can see the list of tags already created using "git tag".
+"gitpkgtool nextversion" and gitpkgtool nextversionmajor looks for
+tags in the format V{major}-{minor}. It adds one to either the major
+or minor number (setting the minor to zero if a major was incremented)
+and tags the current current master branch with that tag.
 
 By default, it does a "git push -tag" to push the latest commits and 
 tags to your origin. If you don't want to do this, or don't have an 
 origin setup, you can skip it by running:
   
-  gitpkgtool nexttag --dontpush
+  gitpkgtool nextversion --dontpush
 
 
 SETTING UP YOUR SOURCE FOR PACKAGING
