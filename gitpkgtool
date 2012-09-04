@@ -368,6 +368,13 @@ sub buildrpm {
 		$project = basename ($nowdir);
 	};
 
+	my $currentBranch = getCurrentBranch();
+	if ($currentBranch eq 'master') {
+		$currentBranch = '';
+	} else {
+		$currentBranch = '_' . $currentBranch;
+	}
+
 	# Checkout the specified build
 	if ($buildtag ne '') {
 		$verbose && print STDERR " * Checking out build $buildtag\n";
@@ -406,16 +413,16 @@ sub buildrpm {
 	$verbose && print STDERR " * building $buildtag as version $version\n";
 
 	# copy into a folder of $project-$version 
-	mkdir $ENV{'HOME'} . "/rpm/tar/$project-$version";
+	mkdir $ENV{'HOME'} . "/rpm/tar/${project}${currentBranch}-$version";
 	call_system ("tar czf - --exclude ".
 		"./$project.spec --exclude ./.git --exclude ./debian . | tar xpzfC ".
-		"- " . $ENV{'HOME'} . "/rpm/tar/$project-$version") &&
+		"- " . $ENV{'HOME'} . "/rpm/tar/${project}${currentBranch}-${version}") &&
 		die "Failed to build temporary tarfile";
 
 	# build the SOURCE tar file
-	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/$project-$version.tar.gz";
+	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/${project}${currentBranch}-${version}.tar.gz";
 	call_system ("tar c" . ($debug ? "v":"") . "zfC $tarfile ".
-		$ENV{'HOME'} . "/rpm/tar $project-$version") 
+		$ENV{'HOME'} . "/rpm/tar ${project}${currentBranch}-${version}") 
 		&& die "Failed to build $tarfile\n";
 	$verbose && print STDERR " * source tarball is in $tarfile\n";
 
@@ -424,6 +431,8 @@ sub buildrpm {
 	# other tags on the fly.
 	my $specfile = $ENV{'HOME'} . "/rpm/SPECS/$project.spec";
 	open (FO, "> $specfile");
+
+	print FO "%define _git_branch $currentBranch\n";
 
 	# parse through specfile
 	open (FI, "$project.spec") || die "There is no $project.spec file in ".
@@ -434,21 +443,7 @@ sub buildrpm {
 			$line = "Version: $version\n";
 		};
 		if ($line =~ /^Source:/) {
-			$line = "Source: $project-$version.tar.gz\n";
-		};
-
-		if ($line =~ /^Name:\s*(.*)\s*/) {
-			my $name = $1;
-			if ($name =~ /^(.*)\%branch\%/) {
-				$name = $1;
-				my $branch = getCurrentBranch ();
-				if ($branch eq 'master') {
-					$branch = '';
-				} else {
-					$branch = '_' . $branch;
-				};
-				$line = "Name:${name}${branch}\n";
-			};
+			$line = "Source: ${project}${currentBranch}-${version}.tar.gz\n";
 		};
 
 		if ($line =~ /^%changelog/) {
