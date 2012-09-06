@@ -46,6 +46,8 @@ if (scalar (@ARGV) ==0 || $ARGV[0] eq 'help' || $ARGV[0] eq '--help') {
 								"  - builds rpm from spec and sources\n".
 								"  builddeb\n".
 								"  - builds deb package file\n".
+								"  buildsetup\n".
+								"  - builds InnoSetup setup.exe\n".
 								"\n".
 								"run \"gitpkgtool <command> --help\" for further options\n\n";
 
@@ -70,7 +72,9 @@ elsif ($ARGV[0] eq 'builddeb') {
 
 elsif ($ARGV[0] eq 'nextversion') {
 	nextversion();
-
+} 
+elsif ($ARGV[0] eq 'buildsetup') {
+	buildsetup();
 } else {
 	print STDERR "Unknown command \"" . $ARGV[0] . "\"\n";
 };
@@ -1062,6 +1066,162 @@ sub buildrpmsource {
 	# scp
 	my $findcmd = "find " . $ENV{'HOME'} . "/rpm -type f -name \*.rpm " .
 		($pub ? " ! -name \\*src.rpm" : "");
+	if ($pub || $pubsrc) {
+		my $filelist;
+		open (F, "$findcmd |");
+		while (my $line = <F>) {
+			chomp $line;
+			$filelist .= $line . " ";
+		};
+		my $pubcmd = $pub_cmd . ' ' . ($debug ? " " : "-q ") . "$filelist ".
+			$pub_dir;
+		$verbose && print STDERR " * Publishing files ...\n";
+		call_system ($pubcmd);
+
+		if (defined $pub_postexec) {
+			$verbose && print STDERR " * Executing post-publish script ...\n";
+			call_system ($pub_postexec);
+		}
+	};
+	
+	# list output 
+	$verbose && print STDERR " * Output:\n\n";
+	call_system ($findcmd);
+	$verbose && print STDERR "\n\n";
+
+
+
+};
+
+# ========================================================================
+# build setup
+# ------------------------------------------------------------------------
+
+sub buildsetup {
+
+	shift @ARGV;
+
+	my $verbose = 0;
+
+	my $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
+	my $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
+	my $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
+	my $pub     = 0;
+	my $pubsrc  = 0;
+
+	
+
+	my ($opt) = GetOptions (
+		'help'	=> \$helpflag,
+		'verbose' => \$verbose,
+		'debug' => \$debug,
+		'pub_cmd=s' => \$pub_cmd,
+		'pub_dir=s' => \$pub_dir,
+		'pub_postexec=s' => \$pub_postexec,
+		'pub' => \$pub,
+		'pubsrc' => \$pubsrc
+	);
+
+	if (!$opt || $helpflag) {
+		print STDERR 
+			"\ngitpkgtool buildsetup [--options] <tag> [source]\n".
+			"\nOptions:\n".
+			"  --verbose - emits running commentary\n".
+			"  --debug - show details of external commands\n".
+			"  --pub_cmd - command to exec when publishing\n".
+			"  --pub_dir - user\@host:/dir of scp dest for publishing\n".
+			"  --pub_postexec - execute command after publishing\n".
+			"  --pub     - publish the setup .exe\n".
+			"  --pubsrc  - publish the setup .exe\n";
+		exit (1);
+	};
+
+
+	my ($buildtag, $reposource) = @ARGV;
+
+	if ( ! -e 'InnoSetup.iss' ) {
+		die "InnoSetup.iss not found in current directory\n";
+	};
+
+	# prepare Build Output folder
+
+	$verbose && print STDERR " * Preparing Output area\n";
+
+	call_system ("rm -rf Output");
+	mkdir "Output" || die "Failed to mkdir Output\n";
+
+	# use source in current directory.
+	my $nowdir = cwd;
+	$verbose && print STDERR " * Using source in $nowdir\n";
+
+	my $currentBranch = getCurrentBranch();
+	if ($currentBranch eq 'master') {
+		$currentBranch = '';
+	} else {
+		$currentBranch = '_' . $currentBranch;
+	}
+
+	# Checkout the specified build
+	if ($buildtag ne '') {
+		$verbose && print STDERR " * Checking out build $buildtag\n";
+		call_system ("git checkout -q $buildtag");
+	};
+
+	# if it has a makefile, call "make distclean"
+	if ( -e "Makefile" || -e "makefile" ) {
+		call_system ("make distclean 2>&1 > /dev/null");
+	};
+
+	# if it's Eclipse, look for Release* and Debug* subdirectories.
+	opendir (DH, ".");
+	while (my $fn = readdir (DH)) {
+		if ( ($fn =~ /^Release/ && -d $fn) ||
+		     ($fn =~ /^Debug/ && -d $fn) ) {
+			chdir ($fn);
+			call_system ("make clean 2>&1 > /dev/null");
+			chdir ("..");
+		};
+	};
+
+	# get the current git version from "git describe"
+	open (F, "git describe|") || die "Unable to pipe from \"git describe\"";
+	$buildtag = <F>;
+	close (F);
+	chomp $buildtag;
+	if ($buildtag eq '') {
+		die ("source is not tagged properly, unable to build.\n");
+	};
+
+	# work up a version number
+	my $version = buildToVersion ($buildtag);
+	$verbose && print STDERR " * building $buildtag as version $version\n";
+
+	# copy the SPEC file over, setting version numbers and editing
+	# other tags on the fly.
+	open (FO, "> $nowdir/InnoSetup.tmp.iss");
+
+	print FO "#define MyAppBranch \"${currentBranch}\"\n";
+	print FO "#define MyAppVersion \"${version}\"\n";
+
+	# parse through specfile
+	open (FI, "$nowdir/InnoSetup.iss") || die "There is no InnoSetup.iss file in ".
+		"the source.\n";
+	while (my $line = <FI>) {
+		# pass through other spec file lines
+		print FO $line;
+	};
+	close (FI);
+
+	close (FO);
+	$verbose && print STDERR " * Using config from $nowdir/InnoSetup.tmp.iss\n";
+
+	# invoke rpmbuild
+	$verbose && print STDERR " * Invoking InnoSetup ...\n";
+	call_system ("wine \"C:/Program Files (x86)/Inno Setup 5/iscc.exe\" InnoSetup.tmp.iss") &&
+		die ("Failed to build setup.exe\n");
+
+	# scp
+	my $findcmd = "find Output -type f -name \*.exe ";
 	if ($pub || $pubsrc) {
 		my $filelist;
 		open (F, "$findcmd |");
