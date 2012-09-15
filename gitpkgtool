@@ -436,7 +436,8 @@ sub buildrpm {
 	my $specfile = $ENV{'HOME'} . "/rpm/SPECS/$project.spec";
 	open (FO, "> $specfile");
 
-	print FO "%define _git_branch $currentBranch\n";
+	printf FO "%%define _git_branch %s\n", 
+		$currentBranch eq '' ? '%{nil}' : $currentBranch;
 
 	# parse through specfile
 	open (FI, "$project.spec") || die "There is no $project.spec file in ".
