@@ -610,6 +610,10 @@ sub getCurrentBranch {
 	chomp ($branch);
 	$branch =~ s/^\*\s//;
 
+	if ($branch eq '') {
+		$branch = "master";
+	};
+
 	return $branch;
 }
 
