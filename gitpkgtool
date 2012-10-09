@@ -603,7 +603,7 @@ sub buildToVersion {
 sub getCurrentBranch {
 
 	# figure out current branch
-	open (F, "git branch| grep \"^\\*\\s\"|") || die 
+	open (F, "git branch| grep \"^\\*\"|") || die 
 		"Cannot open pipe to git branch";
 	my $branch = <F>;
 	close (F);
