@@ -1213,6 +1213,9 @@ sub buildsetup {
 		"the source.\n";
 	while (my $line = <FI>) {
 		# pass through other spec file lines
+		if ($line =~ /^#define MyAppVersion/) {
+			next;
+		};
 		print FO $line;
 	};
 	close (FI);
