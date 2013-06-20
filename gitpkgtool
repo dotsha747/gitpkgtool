@@ -505,8 +505,7 @@ sub buildrpm {
 			chomp $line;
 			$filelist .= $line . " ";
 		};
-		my $pubcmd = $pub_cmd . ' ' . ($debug ? " " : "-q ") . "$filelist ".
-			$pub_dir;
+		my $pubcmd = $pub_cmd . " $filelist ".  $pub_dir;
 		$verbose && print STDERR " * Publishing files ...\n";
 		call_system ($pubcmd);
 
@@ -844,8 +843,7 @@ sub builddeb {
 			chomp $line;
 			$filelist .= $line . " ";
 		};
-		my $pubcmd = $pub_cmd . ' ' . ($debug ? " " : "-q ") . "$filelist ".
-			$pub_dir;
+		my $pubcmd = $pub_cmd . " $filelist ".  $pub_dir;
 		$verbose && print STDERR " * Publishing files ...\n";
 		call_system ($pubcmd);
 
@@ -1088,8 +1086,7 @@ sub buildrpmsource {
 			chomp $line;
 			$filelist .= $line . " ";
 		};
-		my $pubcmd = $pub_cmd . ' ' . ($debug ? " " : "-q ") . "$filelist ".
-			$pub_dir;
+		my $pubcmd = $pub_cmd . " $filelist ".  $pub_dir;
 		$verbose && print STDERR " * Publishing files ...\n";
 		call_system ($pubcmd);
 
@@ -1247,8 +1244,7 @@ sub buildsetup {
 			chomp $line;
 			$filelist .= $line . " ";
 		};
-		my $pubcmd = $pub_cmd . ' ' . ($debug ? " " : "-q ") . "$filelist ".
-			$pub_dir;
+		my $pubcmd = $pub_cmd . " $filelist ".  $pub_dir;
 		$verbose && print STDERR " * Publishing files ...\n";
 		call_system ($pubcmd);
 
