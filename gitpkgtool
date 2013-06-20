@@ -261,6 +261,10 @@ sub buildrpm {
 	my $pub     = 0;
 	my $pubsrc  = 0;
 
+	if ( -e ".gitpkgtool" ) {
+	  require ".gitpkgtool"
+	}
+
 	
 
 	my ($opt) = GetOptions (
@@ -665,6 +669,10 @@ sub builddeb {
 	my $pub     = 0;
 	my $pubsrc  = 0;
 
+	if ( -e ".gitpkgtool" ) {
+	  require ".gitpkgtool"
+	}
+
 	my ($opt) = GetOptions (
 		'help'	=> \$helpflag,
 		'verbose' => \$verbose,
@@ -872,6 +880,10 @@ sub buildrpmsource {
 	my $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
 	my $pub     = 0;
 	my $pubsrc  = 0;
+
+	if ( -e ".gitpkgtool" ) {
+	  require ".gitpkgtool"
+	}
 
 	my ($opt) = GetOptions (
 		'help'	=> \$helpflag,
@@ -1114,6 +1126,9 @@ sub buildsetup {
 	my $pub     = 0;
 	my $pubsrc  = 0;
 
+	if ( -e ".gitpkgtool" ) {
+	  require ".gitpkgtool"
+	}
 	
 
 	my ($opt) = GetOptions (
