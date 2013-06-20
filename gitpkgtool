@@ -255,17 +255,15 @@ sub buildrpm {
 
 	my $verbose = 0;
 
-	my $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
-	my $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
-	my $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
-	my $pub     = 0;
-	my $pubsrc  = 0;
+	our $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
+	our $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
+	our $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
+	our $pub     = 0;
+	our $pubsrc  = 0;
 
 	if ( -e ".gitpkgtool" ) {
 	  require ".gitpkgtool"
 	}
-
-	
 
 	my ($opt) = GetOptions (
 		'help'	=> \$helpflag,
@@ -663,11 +661,11 @@ sub builddeb {
 
 	my $verbose = 0;
 
-	my $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
-	my $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
-	my $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
-	my $pub     = 0;
-	my $pubsrc  = 0;
+	our $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
+	our $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
+	our $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
+	our $pub     = 0;
+	our $pubsrc  = 0;
 
 	if ( -e ".gitpkgtool" ) {
 	  require ".gitpkgtool"
