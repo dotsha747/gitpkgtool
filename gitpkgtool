@@ -1067,7 +1067,7 @@ sub buildipk {
 
 		# do a make
 		$verbose && print " * Building ...\n";
-		call_system ("make -j " . $redir);
+		call_system ("make " . $redir);
 
 	} else {
 
@@ -1085,7 +1085,7 @@ sub buildipk {
 
 			call_system ("make -C" . $dir . "/" . $buildconfig . " -f makefile clean 2>&1 > /dev/null");
 			$verbose && print " * Building ...\n";
-			call_system ("make -C" . $dir . "/" . $buildconfig . " -f makefile -j" . $redir);
+			call_system ("make -C" . $dir . "/" . $buildconfig . " -f makefile " . $redir);
 
 		} else {
 			die "Unable to find Makefile, makefile or Eclipse-style makefile. Abort.\n";
