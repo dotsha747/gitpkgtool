@@ -1052,7 +1052,7 @@ sub buildipk {
 	};
 
 	# if it has a makefile, use that.
-	if ( -e "Makefile" || -e "makefile" ) {
+	if ( -e $dir . "/Makefile" || -e $dir . "/makefile" ) {
 
 		$verbose && print " * Found \"makefile\".\n";
 
@@ -1069,28 +1069,36 @@ sub buildipk {
 		$verbose && print " * Building ...\n";
 		call_system ("make " . $redir);
 
-	} else {
+	} 
+	elsif ( -e $dir . "/build.xml" ) {
+		
+		# if it has a build.xml, use ant and build it.
+		$verbose && print " * Found \"build.xml\".\n";
+
+		call_system ("ant clean");
+
+		$verbose && print " * Building ...\n";
+		call_system ("ant build");
+
+	} 
+	elsif (  -e $dir . "/" . $buildconfig . "/makefile" ) { 
 
 		# Test to see if we're eclipse. Look for $buildconfig
 
-		if ( -e $dir . "/" . $buildconfig . "/makefile" ) { 
+		$verbose && print " * Found Eclipse ${buildconfig}/makefile.\n";
 
-			$verbose && print " * Found Eclipse ${buildconfig}/makefile.\n";
+		if ( -e $dir . "/opkg/patchsrcversion.sh") {
+			$verbose && print " * Patching version \"$version\" into source.\n";
+			call_system ($dir . "/opkg/patchsrcversion.sh \"$dir\" \"$version\"") && 
+				die $dir . "/opkg/patchsrcversion.sh returned non-zero result\n";;
+		};
 
-			if ( -e $dir . "/opkg/patchsrcversion.sh") {
-				$verbose && print " * Patching version \"$version\" into source.\n";
-				call_system ($dir . "/opkg/patchsrcversion.sh \"$dir\" \"$version\"") && 
-				  die $dir . "/opkg/patchsrcversion.sh returned non-zero result\n";;
-			};
+		call_system ("make -C" . $dir . "/" . $buildconfig . " -f makefile clean 2>&1 > /dev/null");
+		$verbose && print " * Building ...\n";
+		call_system ("make -C" . $dir . "/" . $buildconfig . " -f makefile " . $redir);
 
-			call_system ("make -C" . $dir . "/" . $buildconfig . " -f makefile clean 2>&1 > /dev/null");
-			$verbose && print " * Building ...\n";
-			call_system ("make -C" . $dir . "/" . $buildconfig . " -f makefile " . $redir);
-
-		} else {
-			die "Unable to find Makefile, makefile or Eclipse-style makefile. Abort.\n";
-		}
-
+	} else {
+		die "Unable to find Makefile, makefile, build.xml or Eclipse-style makefile. Abort.\n";
 	};
 
 	# create root directory to install to
