@@ -48,6 +48,8 @@ if (scalar (@ARGV) ==0 || $ARGV[0] eq 'help' || $ARGV[0] eq '--help') {
 								"  - builds deb package file\n".
 								"  buildsetup\n".
 								"  - builds InnoSetup setup.exe\n".
+								"  buildipk\n".
+								"  - builds opkg package file\n".
 								"\n".
 								"run \"gitpkgtool <command> --help\" for further options\n\n";
 
@@ -75,6 +77,9 @@ elsif ($ARGV[0] eq 'nextversion') {
 } 
 elsif ($ARGV[0] eq 'buildsetup') {
 	buildsetup();
+}
+elsif ($ARGV[0] eq 'buildipk') {
+  buildipk();
 } else {
 	print STDERR "Unknown command \"" . $ARGV[0] . "\"\n";
 };
@@ -860,6 +865,296 @@ sub builddeb {
 
 }
 
+# ========================================================================
+# buildipk
+#
+# build for opkg package installer.
+#
+# Provide "--gitsrc" and "--gitbranch" to clone source from a repo. 
+# Otherwise, current directory is assumed.
+#
+# It will assume makefile in source folder. Otherwise, it will look
+# for Eclipse "Release/makefile". Specify --buidlconfig to change 
+# "Release" to something else, e.g. "Debug-NX7260".
+#
+# You will need opkg folder under source, containing:
+# opkg/control/control
+# opkg/control/preinst
+# opkg/control/prerm
+# opkg/control/postinst
+# opkg/control/postrm
+# opkg/control/patchsrcversion.sh {rootdir} {version}
+# opkg/control/install.sh {rootdir}
+# opkg/control/publish.sh  {file.opkg}
+#
+# .gitpkgtool in source can override default variables.
+# ------------------------------------------------------------------------
+
+sub buildipk {
+
+	
+	shift @ARGV;
+
+	my $verbose = 0;
+
+	our $gitsrc;
+	our $gittag;
+	our $buildconfig = "Release";
+	our $publish;
+
+	if ( -e ".gitpkgtool" ) {
+	  require ".gitpkgtool"
+	}
+
+	my ($opt) = GetOptions (
+		'help'	=> \$helpflag,
+		'verbose' => \$verbose,
+		'debug' => \$debug,
+		'gitsrc=s' => \$gitsrc,
+		'gittag=s' => \$gittag,
+		'buildconfig=s' => \$buildconfig,
+		'publish' => \$publish
+	);
+
+	if (!$opt || $helpflag) {
+		print STDERR 
+			"\ngitpkgtool buildipk [--options] \n".
+			"\nOptions:\n".
+			"  --verbose - emits running commentary\n".
+			"  --debug - show details of external commands\n".
+			"  --gitsrc - URI to git clone source\n".
+			"  --gittag - git tag/branch to checkout\n".
+			"  --buildconfig - Eclipse buildconfig to use. Defaults to \"Release\"\n";
+		exit (1);
+	};
+
+
+	# choose somewhere far away to work in (~/opkg/)
+	$verbose && print STDERR " * Preparing work area " . $ENV{'HOME'}."/opkg\n";
+	call_system ("rm -rf " . $ENV{'HOME'} . "/opkg");
+	mkdir $ENV{'HOME'} . "/opkg";
+	mkdir $ENV{'HOME'} . "/opkg/src";
+
+	my $version;
+	my $project;
+	my $currentBranch;
+	my $dir; # source is here
+
+	if (defined $gitsrc) {
+
+		# user specified a git repo to clone from
+		$dir = $ENV{'HOME'} . "/opkg/src";
+		$verbose && print STDERR " * Cloning $gitsrc to $dir\n";
+
+		mkdir $dir;
+		chdir $dir;
+
+		# clone the repo
+		my $ret = call_system ("git clone -q $gitsrc") &&
+			die "\"git clone $gitsrc\" failed.";
+
+		# we need the name of the project -- the dir git created.
+		opendir (DH, $dir);
+		while ( my $fn = readdir (DH)) {
+			if ($fn !~ /^\./) {
+				$project = $fn;
+			};
+		};
+		closedir (DH);
+		chdir ($dir . "/" . $project) ||
+			die "Failed to chdir to $dir/$project\n";
+		$dir .= "/" . $project;
+
+		# Checkout the specified tag/branch (buildtag)
+		if ($gittag ne '') {
+			$verbose && print STDERR " * Checking out tag/branch $gittag\n";
+			call_system ("git checkout -q $gittag");
+		};
+
+		# get the current git version from "git describe"
+		open (F, "git describe|") || die "Unable to pipe from \"git describe\"";
+		my ($buildtag) = <F>;
+		close (F);
+		chomp $buildtag;
+		if ($buildtag eq '') {
+			die ("source is not tagged properly, unable to build.\n");
+		};
+
+		# work up a version number
+		$version = buildToVersion ($buildtag);
+		$verbose && print STDERR " * building as version $version\n";
+
+		$currentBranch = getCurrentBranch();
+		if ($currentBranch eq 'master' || $currentBranch eq '') {
+			$currentBranch = '';
+		} else {
+			$currentBranch = '_' . $currentBranch;
+		}
+	
+	} else {
+
+		# use source in current directory.
+		my $nowdir = cwd;
+		$verbose && print STDERR " * Using source in $nowdir\n";
+
+		# get the current git version from "git describe"
+		open (F, "git describe|") || die "Unable to pipe from \"git describe\"";
+		my ($buildtag) = <F>;
+		close (F);
+		chomp $buildtag;
+		if ($buildtag eq '') {
+			die ("source is not tagged properly, unable to build.\n");
+		};
+
+		# work up a version number
+		$version = buildToVersion ($buildtag);
+		$verbose && print STDERR " * building $buildtag as version $version\n";
+
+		$currentBranch = getCurrentBranch();
+		if ($currentBranch eq 'master' || $currentBranch eq '') {
+			$currentBranch = '';
+		} else {
+			$currentBranch = '_' . $currentBranch;
+		}
+
+		# project is current folder name
+		$project = basename ($nowdir);
+
+		# copy into a folder of $project-$version 
+		$dir = $ENV{'HOME'} . "/opkg/src/${project}${currentBranch}-$version";
+		mkdir $dir;
+		call_system ("tar czf - ".
+		" --exclude ./.git  . | tar xpzfC ".
+		"- " . $ENV{'HOME'} . "/opkg/src/${project}${currentBranch}-${version}") &&
+		die "Failed to build temporary src copy";
+
+	};
+
+	$verbose && print " * Building ${project}${currentBranch}-$version.ipk\n";
+
+	my $redir = $verbose ? "" : " 2>&1 >/dev/null";
+	my $dredir = $debug ? "" : " 2>&1 >/dev/null";
+
+	# set permissions on control files and scripts, ignoring if they
+	# are not found.
+
+	foreach my $p (
+		"control/postinst",
+		"control/postrm",
+		"control/preinst",
+		"control/prerm",
+		"patchsrcversion.sh",
+		"install.sh",
+		"publish.sh"
+	) {
+		chmod 0755, $dir . "/opkg/" . $p;
+	};
+
+	# if it has a makefile, use that.
+	if ( -e "Makefile" || -e "makefile" ) {
+
+		$verbose && print " * Found \"makefile\".\n";
+
+		if ( -e $dir . "/opkg/patchsrcversion.sh") {
+			$verbose && print " * Patching version \"$version\" into source.\n";
+			call_system ($dir . "/opkg/patchsrcversion.sh \"$dir\" \"$version\"") && 
+				die $dir . "/opkg/patchsrcversion.sh returned non-zero result\n";;
+		};
+
+		# do a make distclean
+		call_system ("make distclean 2>&1 > /dev/null");
+
+		# do a make
+		$verbose && print " * Building ...\n";
+		call_system ("make -j " . $redir);
+
+	} else {
+
+		# Test to see if we're eclipse. Look for $buildconfig
+
+		if ( -e $dir . "/" . $buildconfig . "/makefile" ) { 
+
+			$verbose && print " * Found Eclipse ${buildconfig}/makefile.\n";
+
+			if ( -e $dir . "/opkg/patchsrcversion.sh") {
+				$verbose && print " * Patching version \"$version\" into source.\n";
+				call_system ($dir . "/opkg/patchsrcversion.sh \"$dir\" \"$version\"") && 
+				  die $dir . "/opkg/patchsrcversion.sh returned non-zero result\n";;
+			};
+
+			call_system ("make -C" . $dir . "/" . $buildconfig . " -f makefile clean 2>&1 > /dev/null");
+			$verbose && print " * Building ...\n";
+			call_system ("make -C" . $dir . "/" . $buildconfig . " -f makefile -j" . $redir);
+
+		} else {
+			die "Unable to find Makefile, makefile or Eclipse-style makefile. Abort.\n";
+		}
+
+	};
+
+	# create root directory to install to
+
+	mkdir $ENV{'HOME'} . "/opkg/root";
+	mkdir $ENV{'HOME'} . "/opkg/ar";
+
+	# call install sh, while current dir is source dir. Pass in root dir
+	# and also buildconfig (if we have one).
+
+	if ( -e $dir . "/opkg/install.sh" ) {
+
+		$verbose && print " * Installing into " . $ENV{'HOME'} . "/opkg/root\n";
+
+		call_system ($dir . "/opkg/install.sh \"" . $ENV{'HOME'} . "/opkg/root" . "\" \"$buildconfig\" " . $redir) && die "Aborting, \"" . $dir . "/opkg/install.sh \"" . $ENV{'HOME'} . "/opkg/root\" \"$buildconfig\" returned non-zero result.";
+
+	} else {
+		die "Unable to find $dir/opkg/install.sh\n";
+	};
+
+	# tar up the root to make data.tar.gz
+	$verbose && print " * Making data.tar.gz\n";
+	call_system ("tar czpfC " . $ENV{'HOME'}. "/opkg/ar/data.tar.gz " . $ENV{'HOME'}."/opkg/root .") && die "Failed to make data.tar.gz\n";
+
+	# patch control
+	$verbose && print " * Patching control file.\n";
+	call_system (
+		"sed ".
+			"-e 's/^Package:.*/Package: ${project}${currentBranch}/' ".
+			"-e 's/^Version:.*/Version: ${version}/' ".
+			"-i ${dir}/opkg/control/control" 
+		) && die "Failed to patch Package and Version in opkg/control\n";
+
+
+	# tar up control to make control.tar.gz
+	$verbose && print " * Making control.tar.gz\n";
+	call_system ("tar czpfC " . $ENV{'HOME'}. "/opkg/ar/control.tar.gz " . $dir . "/opkg/control .") && die "Failed to make control.tar.gz\n";
+
+
+	# copy over debian-binary
+	$verbose && print " * Copying debian-binary\n";
+	call_system ("cp " . $dir . "/opkg/debian-binary " . $ENV{'HOME'} .
+		"/opkg/ar/debian-binary") && die "Failed to copy debian-binary\n";
+
+	# building ipkg
+	$verbose && print " * Building ${project}${currentBranch}-${version}.ipk\n";
+	chdir ($ENV{'HOME'} . "/opkg/ar");
+	call_system ("ar -r " . $ENV{'HOME'} . "/opkg/${project}${currentBranch}-${version}.ipk debian-binary control.tar.gz data.tar.gz") && die
+		"failed to ar ${project}${currentBranch}-${version}.ipk\n";
+
+	# publish if required
+	if ( $publish ) {
+
+		if (-e $dir . "/opkg/publish.sh") {
+			$verbose && print " * publishing ${project}${currentBranch}-${version}.ipk\n";
+			call_system ($dir . "/opkg/install.sh \"" . . $ENV{'HOME'} . "/opkg/${project}${currentBranch}-${version}.ipk ") &&
+				die "Abort, install.sh returned non-zero status\n";
+		} else {
+			die ("Abort, unable to publish as there is no " . $dir . "/opkg/publish.sh");
+		};
+
+	}
+
+	print "Done.\n";
+}
 
 # ========================================================================
 # buildrpmsource
