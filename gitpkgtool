@@ -924,7 +924,8 @@ sub buildipk {
 			"  --debug - show details of external commands\n".
 			"  --gitsrc - URI to git clone source\n".
 			"  --gittag - git tag/branch to checkout\n".
-			"  --buildconfig - Eclipse buildconfig to use. Defaults to \"Release\"\n";
+			"  --buildconfig - Eclipse buildconfig to use. Defaults to \"Release\"\n".
+			" --publish - publish the .ipk\n";
 		exit (1);
 	};
 
@@ -1145,7 +1146,7 @@ sub buildipk {
 
 		if (-e $dir . "/opkg/publish.sh") {
 			$verbose && print " * publishing ${project}${currentBranch}-${version}.ipk\n";
-			call_system ($dir . "/opkg/install.sh \"" . . $ENV{'HOME'} . "/opkg/${project}${currentBranch}-${version}.ipk ") &&
+			call_system ($dir . "/opkg/install.sh \"" . $ENV{'HOME'} . "/opkg/${project}${currentBranch}-${version}.ipk ") &&
 				die "Abort, install.sh returned non-zero status\n";
 		} else {
 			die ("Abort, unable to publish as there is no " . $dir . "/opkg/publish.sh");
