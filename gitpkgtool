@@ -1105,7 +1105,7 @@ sub buildipk {
 
 		$verbose && print " * Installing into " . $ENV{'HOME'} . "/opkg/root\n";
 
-		call_system ($dir . "/opkg/install.sh \"" . $ENV{'HOME'} . "/opkg/root" . "\" \"$buildconfig\" " . $redir) && die "Aborting, \"" . $dir . "/opkg/install.sh \"" . $ENV{'HOME'} . "/opkg/root\" \"$buildconfig\" returned non-zero result.";
+		call_system ($dir . "/opkg/install.sh \"" . $ENV{'HOME'} . "/opkg/root" . "\" \"${dir}\" \"${buildconfig}\" " . $redir) && die "Aborting, \"" . $dir . "/opkg/install.sh \"" . $ENV{'HOME'} . "/opkg/root\" \"$buildconfig\" returned non-zero result.";
 
 	} else {
 		die "Unable to find $dir/opkg/install.sh\n";
