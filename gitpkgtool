@@ -1146,8 +1146,8 @@ sub buildipk {
 
 		if (-e $dir . "/opkg/publish.sh") {
 			$verbose && print " * publishing ${project}${currentBranch}-${version}.ipk\n";
-			call_system ($dir . "/opkg/install.sh \"" . $ENV{'HOME'} . "/opkg/${project}${currentBranch}-${version}.ipk\" ") &&
-				die "Abort, install.sh returned non-zero status\n";
+			call_system ($dir . "/opkg/publish.sh \"" . $ENV{'HOME'} . "/opkg/${project}${currentBranch}-${version}.ipk\" ") &&
+				die "Abort, publish.sh returned non-zero status\n";
 		} else {
 			die ("Abort, unable to publish as there is no " . $dir . "/opkg/publish.sh");
 		};
