@@ -1121,7 +1121,7 @@ sub buildipk {
 
 	# tar up the root to make data.tar.gz
 	$verbose && print " * Making data.tar.gz\n";
-	call_system ("tar czpfC " . $ENV{'HOME'}. "/opkg/ar/data.tar.gz " . $ENV{'HOME'}."/opkg/root .") && die "Failed to make data.tar.gz\n";
+	call_system ("fakeroot tar czpfC " . $ENV{'HOME'}. "/opkg/ar/data.tar.gz " . $ENV{'HOME'}."/opkg/root .") && die "Failed to make data.tar.gz\n";
 
 	# patch control
 	$verbose && print " * Patching control file.\n";
@@ -1135,7 +1135,7 @@ sub buildipk {
 
 	# tar up control to make control.tar.gz
 	$verbose && print " * Making control.tar.gz\n";
-	call_system ("tar czpfC " . $ENV{'HOME'}. "/opkg/ar/control.tar.gz " . $dir . "/opkg/control .") && die "Failed to make control.tar.gz\n";
+	call_system ("fakeroot tar czpfC " . $ENV{'HOME'}. "/opkg/ar/control.tar.gz " . $dir . "/opkg/control .") && die "Failed to make control.tar.gz\n";
 
 
 	# copy over debian-binary
