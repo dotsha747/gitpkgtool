@@ -423,14 +423,6 @@ sub buildrpm {
 	my $version = buildToVersion ($buildtag);
 	$verbose && print STDERR " * building $buildtag as version $version\n";
 
-	# call "gitpkgtool-buildrpm-pre-source-copy-hook" if it exists
-	if (-x "gitpkgtool-buildrpm-pre-source-copy-hook" ) {
-		$verbose && print STDERR " * Calling gitpkgtool-buildrpm-pre-source-copy-hook\n";
-		my $ret = call_system ("./gitpkgtool-buildrpm-pre-source-copy-hook \"${version}\"");
-		if ($ret != 0) {
-			die "failed calling gitpkgtool-buildrpm-pre-source-copy-hook\n";
-		}
-	};
 
 	# copy into a folder of $project-$version 
 	mkdir $ENV{'HOME'} . "/rpm/tar/${project}${currentBranch}-$version";
@@ -438,6 +430,15 @@ sub buildrpm {
 		"./$project.spec --exclude ./.git --exclude ./debian . | tar xpzfC ".
 		"- " . $ENV{'HOME'} . "/rpm/tar/${project}${currentBranch}-${version}") &&
 		die "Failed to build temporary tarfile";
+
+	# call "gitpkgtool-buildrpm-post-source-copy-hook" if it exists
+	if (-x "gitpkgtool-buildrpm-post-source-copy-hook" ) {
+		$verbose && print STDERR " * Calling gitpkgtool-buildrpm-post-source-copy-hook\n";
+		my $ret = call_system ("./gitpkgtool-buildrpm-post-source-copy-hook \"${version}\" \"" . $ENV{'HOME'} . "/rpm/tar/" . ${project}${currentBranch}-${version}\"");
+		if ($ret != 0) {
+			die "failed calling gitpkgtool-buildrpm-post-source-copy-hook\n";
+		}
+	};
 
 	# build the SOURCE tar file
 	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/${project}${currentBranch}-${version}.tar.gz";
