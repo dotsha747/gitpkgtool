@@ -434,7 +434,7 @@ sub buildrpm {
 	# call "gitpkgtool-buildrpm-post-source-copy-hook" if it exists
 	if (-x "gitpkgtool-buildrpm-post-source-copy-hook" ) {
 		$verbose && print STDERR " * Calling gitpkgtool-buildrpm-post-source-copy-hook\n";
-		my $ret = call_system ("./gitpkgtool-buildrpm-post-source-copy-hook \"${version}\" \"" . $ENV{'HOME'} . "/rpm/tar/" . ${project}${currentBranch}-${version}\"");
+		my $ret = call_system ("./gitpkgtool-buildrpm-post-source-copy-hook \"${version}\" \"" . $ENV{'HOME'} . "/rpm/tar/" . "${project}${currentBranch}-${version}\"");
 		if ($ret != 0) {
 			die "failed calling gitpkgtool-buildrpm-post-source-copy-hook\n";
 		}
