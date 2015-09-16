@@ -423,6 +423,15 @@ sub buildrpm {
 	my $version = buildToVersion ($buildtag);
 	$verbose && print STDERR " * building $buildtag as version $version\n";
 
+	# call "gitpkgtool-buildrpm-pre-source-copy-hook" if it exists
+	if (-x "gitpkgtool-buildrpm-pre-source-copy-hook" ) {
+		$verbose && print STDERR " * Calling gitpkgtool-buildrpm-pre-source-copy-hook\n";
+		my $ret = call_system ("./gitpkgtool-buildrpm-pre-source-copy-hook \"${version}\"");
+		if ($ret != 0) {
+			die "failed calling gitpkgtool-buildrpm-pre-source-copy-hook\n";
+		}
+	};
+
 	# copy into a folder of $project-$version 
 	mkdir $ENV{'HOME'} . "/rpm/tar/${project}${currentBranch}-$version";
 	call_system ("tar czf - --exclude ".
