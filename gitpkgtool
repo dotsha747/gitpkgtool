@@ -23,7 +23,9 @@ use strict;
 use Getopt::Long;
 use Cwd;
 use File::Basename;
+use File::Temp;
 use POSIX;
+use Data::Dumper;
 
 my $helpflag = 0;
 my $debug = 0;
@@ -50,6 +52,8 @@ if (scalar (@ARGV) ==0 || $ARGV[0] eq 'help' || $ARGV[0] eq '--help') {
 								"  - builds InnoSetup setup.exe\n".
 								"  buildipk\n".
 								"  - builds opkg package file\n".
+								"	 buildnsis\n".
+								"  - builds windows installer .exe using nsis\n".
 								"\n".
 								"run \"gitpkgtool <command> --help\" for further options\n\n";
 
@@ -80,6 +84,9 @@ elsif ($ARGV[0] eq 'buildsetup') {
 }
 elsif ($ARGV[0] eq 'buildipk') {
   buildipk();
+}
+elsif ($ARGV[0] eq 'buildnsis') {
+	buildnsis();
 } else {
 	print STDERR "Unknown command \"" . $ARGV[0] . "\"\n";
 };
@@ -612,6 +619,9 @@ sub buildToVersion {
 }
 
 
+
+
+
 # ========================================================================
 # get the current branch name
 # ------------------------------------------------------------------------
@@ -674,12 +684,8 @@ sub builddeb {
 	shift @ARGV;
 
 	my $verbose = 0;
-
-	our $pub_cmd = $ENV{'GITPKGTOOL_PUB_CMD'};
-	our $pub_dir = $ENV{'GITPKGTOOL_PUB_DIR'};
-	our $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
-	our $pub     = 0;
-	our $pubsrc  = 0;
+	my $publish = undef;
+	my $pubsrc = undef;
 
 	if ( -e ".gitpkgtool" ) {
 	  require ".gitpkgtool"
@@ -689,12 +695,10 @@ sub builddeb {
 		'help'	=> \$helpflag,
 		'verbose' => \$verbose,
 		'debug' => \$debug,
-		'pub_cmd=s' => \$pub_cmd,
-		'pub_dir=s' => \$pub_dir,
-		'pub_postexec=s' => \$pub_postexec,
-		'pub' => \$pub,
+		'publish' => \$publish,
 		'pubsrc' => \$pubsrc
 	);
+
 
 	if (!$opt || $helpflag) {
 		print STDERR 
@@ -702,11 +706,7 @@ sub builddeb {
 			"\nOptions:\n".
 			"  --verbose - emits running commentary\n".
 			"  --debug - show details of external commands\n".
-			"  --pub_cmd - command to exec when publishing\n".
-			"  --pub_dir - user\@host:/dir of ssh dest for publishing\n".
-			"  --pub_postexec - execute command after publishing\n".
-			"  --pub     - publish the Binary RPMS\n".
-			"  --pubsrc  - publish the Binary & Source RPMS\n";
+			"  --publish - publish after build\n";
 		exit (1);
 	};
 
@@ -790,29 +790,51 @@ sub builddeb {
 	};
 
 	# debianize the project name
-	$project = lc $project;
-	$project =~ s/_//;
-	$verbose && print STDERR " * Debianized project name to $project\n";
+	my $package = lc $project;
+	$verbose && print STDERR " * Debianized package name is $package\n";
 
 	# work up a version number 
 	my $version = buildToVersion ($buildtag);
 
-	$verbose && print STDERR " * Building $buildtag as version $version\n";
+	$verbose && print STDERR " * Extracted build tag as version \"$version\"\n";
 
-	# copy into a folder of $project-$version 
+
+
+	# is this a lib package?
+	my $originalVersion = $version;
+	my $sover="";
+	if ($project=~ /^lib/) {
+		($sover, $version) = $version =~ /(\d+)\.(.*)/;
+		$verbose && print STDERR " * Detected lib, so building as package \"${package}${sover}\" and version \"$version\"\n";
+	};
+
+
+
+	# copy into a folder of ${package}${sover}-${version}
 	mkdir $ENV{'HOME'} . "/deb/tar";
-	mkdir $ENV{'HOME'} . "/deb/tar/$project-$version";
+	mkdir $ENV{'HOME'} . "/deb/tar/${package}${sover}-${version}";
 	call_system ("tar czf - --exclude ".
 		"./$project.spec --exclude ./.git --exclude ./debian . | tar xpzfC ".
-		"- " . $ENV{'HOME'} . "/deb/tar/$project-$version") &&
+		"- " . $ENV{'HOME'} . "/deb/tar/${package}${sover}-${version}") &&
 		die "Failed to build temporary tarfile";
 
+	
+	# is there a .patchversion.sh script?
+	if ( -x $ENV{'HOME'} . "/deb/tar/${package}${sover}-${version}/patchVersion.sh" ) {
+		my ($majorVersion, $minorVersion) = $originalVersion =~ /(\d+)\.(.*)/;
+		$verbose && print STDERR " * Patching source with project ${project} majorVersion $majorVersion minorVersion $minorVersion\n";
+		call_system ("cd $ENV{'HOME'}/deb/tar/${package}${sover}-${version}; ./patchVersion.sh \"$project\" \"$majorVersion\" \"$minorVersion\"");
+	};
+
 	# build the SOURCE tar file
-	my $tarfile = $ENV{'HOME'} . "/deb/${project}_${version}.orig.tar.gz";
+	my $tarfile = $ENV{'HOME'} . "/deb/${package}${sover}_${version}.orig.tar.gz";
 	call_system ("tar c" . ($debug ? "v":"") . "zfC $tarfile ".
-		$ENV{'HOME'} . "/deb/tar $project-$version") 
+		$ENV{'HOME'} . "/deb/tar ${package}${sover}-${version}") 
 		&& die "Failed to build $tarfile\n";
 	$verbose && print STDERR " * source tarball is in $tarfile\n";
+
+	# we no longer need the "tar" subfolder
+	call_system ("rm -rf $ENV{'HOME'}/deb/tar");
 
 	# extract back the tarball into the build dir
 	$verbose && print STDERR " * extracting tarball to build dir\n";
@@ -820,11 +842,20 @@ sub builddeb {
 		$ENV{'HOME'}. "/deb");
 
 	# copy over debian subfolder
-	call_system ("cp -a debian " . $ENV{'HOME'}. "/deb/$project-$version/");
+	call_system ("cp -a debian " . $ENV{'HOME'}. "/deb/${package}${sover}-${version}/");
+
+
+	# call patchDebian.sh to make changes to debian/ folder
+	if ( -x $ENV{'HOME'} . "/deb/${package}${sover}-${version}/patchDebian.sh" ) {
+		my ($majorVersion, $minorVersion) = $originalVersion =~ /(\d+)\.(.*)/;
+		$verbose && print STDERR (" * patching debian control files with project ${project} majorVersion ${majorVersion} minorVersion ${minorVersion}\n");
+		call_system ("cd $ENV{'HOME'}/deb/${package}${sover}-${version}; ./patchDebian.sh \"${project}\" \"${majorVersion}\" \"${minorVersion}\"");
+	};
+
 
 	# grep maintainer email from debian/control
 	my $maintainer = "nobody\@nobody.org";
-	my $controlfile = $ENV{'HOME'} . "/deb/$project-$version/debian/control";
+	my $controlfile = $ENV{'HOME'} . "/deb/${package}${sover}-${version}/debian/control";
 	open (F, $controlfile) || die "Failed to open $controlfile\n";
 	while ( my $line = <F>) {
 		if ($line =~ /^Maintainer:\s(.*)$/) {
@@ -834,44 +865,52 @@ sub builddeb {
 	close (F);
 
 	# overwrite a changelog with current version
-	my $changelogfile = $ENV{'HOME'} . "/deb/$project-$version/debian/changelog";
+	my $changelogfile = $ENV{'HOME'} . "/deb/${package}${sover}-${version}/debian/changelog";
 	open (F, "> $changelogfile") || die "Failed to open $changelogfile ".
 		"for writing\n";
-	print F "$project ($version) unstable; urgency=low\n\n";
+	print F "${package}${sover} ($version) unstable; urgency=low\n\n";
 	print F "  * Release $buildtag via gitpkgtool\n\n";
 	print F " -- $maintainer  " . strftime ("%a, %d %b %Y %H:%M:%S %z",
 		localtime()) . "\n";
 	close (F);
 
 	$verbose && print STDERR " * Building deb source and binary package\n";
-	chdir ($ENV{'HOME'} . "/deb/$project-$version");
+	chdir ($ENV{'HOME'} . "/deb/${package}${sover}-${version}");
 	call_system ("dpkg-buildpackage");
 
+	# compile list of all RPMs
 
-	# scp
+
 	my $findcmd = "find " . $ENV{'HOME'} . "/deb -maxdepth 1 -type f ".
 		"-name \*.deb " . ($pubsrc ? " -o -name \*dsc" : "") ;
-	if ($pub || $pubsrc) {
-		my $filelist;
-		open (F, "$findcmd |");
-		while (my $line = <F>) {
-			chomp $line;
-			$filelist .= $line . " ";
-		};
-		my $pubcmd = $pub_cmd . " $filelist ".  $pub_dir;
-		$verbose && print STDERR " * Publishing files ...\n";
-		call_system ($pubcmd);
-
-		if (defined $pub_postexec) {
-			$verbose && print STDERR " * Executing post-publish script ...\n";
-			call_system ($pub_postexec);
-		}
+	
+	my @packages;
+	open (F, "$findcmd |");
+	while (my $line = <F>) {
+		chomp $line;
+		push @packages, $line;
 	};
+
+
+#		if (defined $pub_postexec) {
+#			$verbose && print STDERR " * Executing post-publish script ...\n";
+#			call_system ($pub_postexec);
+#		}
+	#};
 	
 	# list output 
-	$verbose && print STDERR " * Output:\n\n";
-	call_system ($findcmd);
-	$verbose && print STDERR "\n\n";
+		$verbose && print STDERR " * Output:\n\n";
+			foreach my $pkg (@packages) {
+				$verbose && print STDERR "$pkg\n";
+			};
+	#	$verbose && print STDERR "\n\n";
+
+	if ($publish) {
+		$verbose && print STDERR " * publishing packages ...\n";
+		call_system ($ENV{'HOME'} . "/deb/${package}${sover}-${version}/publish.sh " . join (" ", map { "\"" . $_ . "\"" } @packages)); 
+	};
+
+	$verbose && print STDERR " * DONE\n";
 
 }
 
@@ -1579,3 +1618,222 @@ sub buildsetup {
 
 
 };
+
+
+
+sub buildnsis {
+
+	shift @ARGV;
+
+	my $verbose = 0;
+	my $reposource;
+	my $buildtag;
+
+	my ($opt) = GetOptions (
+		'help'	=> \$helpflag,
+		'verbose' => \$verbose,
+		'debug' => \$debug,
+		'reposource=s' => \$reposource,
+		'buildtag=s' => \$buildtag
+	);
+
+	if (!$opt || $helpflag) {
+		print STDERR 
+			"\ngitpkgtool buildrpm [--options] <tag> [source]\n".
+			"\nOptions:\n".
+			"  --verbose - emits running commentary\n".
+			"  --debug - show details of external commands\n";
+		exit (1);
+	};
+
+
+	my ($buildtag, $reposource) = @ARGV;
+
+	# prepare work area
+	
+	my $dir = File::Temp::tempdir (CLEANUP => 1, DIR => ".");
+
+	$verbose && print STDERR " * Working directory is ./${dir}\n";
+	mkdir "$dir/source";
+	mkdir "$dir/output";
+
+	my $project = "";
+
+	if (defined $reposource) {
+		
+		# user specified a repo to pull frm
+		$verbose && print STDERR " * Cloning $reposource to $dir\n";
+
+		mkdir $dir . "/git";
+		chdir $dir ."/git";
+
+		# clone the repo
+		my $ret = call_system ("git clone -q $reposource") &&
+			die "\"git clone $reposource\" failed.";
+
+		# we need the name of the project
+		opendir (DH, $dir);
+		while ( my $fn = readdir (DH)) {
+			if ($fn !~ /^\./) {
+				$project = $fn;
+			};
+		};
+		closedir (DH);
+		chdir ($dir . "/" . $project) ||
+			die "Failed to chdir to $dir/$project\n";
+
+	} else {
+
+		# use source in current directory.
+		my $nowdir = cwd;
+		$verbose && print STDERR " * Using source in $nowdir\n";
+
+		$project = basename ($nowdir);
+	};
+
+	my $currentBranch = getCurrentBranch();
+	if ($currentBranch eq 'master' || $currentBranch eq '') {
+		$currentBranch = '';
+	} else {
+		$currentBranch = '_' . $currentBranch;
+	}
+
+	# Checkout the specified build
+	if ($buildtag ne '') {
+		$verbose && print STDERR " * Checking out build $buildtag\n";
+		call_system ("git checkout -q $buildtag");
+	};
+
+	$verbose && print STDERR " * Cleaning project source $project\n";
+
+	# if it has a makefile, call "make distclean"
+	if ( -e "Makefile" || -e "makefile" ) {
+		call_system ("make distclean 2>&1 > /dev/null");
+	};
+
+	# if it's Eclipse, look for Release* and Debug* subdirectories.
+	opendir (DH, ".");
+	while (my $fn = readdir (DH)) {
+		if ( ($fn =~ /^Release/ && -d $fn) ||
+		     ($fn =~ /^Debug/ && -d $fn) ) {
+			chdir ($fn);
+			call_system ("make clean 2>&1 > /dev/null");
+			chdir ("..");
+		};
+	};
+
+	# get the current git version from "git describe"
+	open (F, "git describe|") || die "Unable to pipe from \"git describe\"";
+	$buildtag = <F>;
+	close (F);
+	chomp $buildtag;
+	if ($buildtag eq '') {
+		die ("source is not tagged properly, unable to build.\n");
+	};
+
+	# work up a version number
+	my $version = buildToVersion ($buildtag);
+	$verbose && print STDERR " * Copying source to " . $dir . "/source/${project}${currentBranch}-${version}\n";
+
+
+	# copy into a folder of $project-$version 
+	mkdir $dir . "/source/${project}${currentBranch}-$version";
+	call_system ("tar czf - --exclude ".
+		"./$project.spec --exclude ./.git --exclude ./debian --exclude $dir . ".
+		"| tar xpzfC ".
+		"- " . $dir . "/source/${project}${currentBranch}-${version}") &&
+		die "Failed to build temporary tarfile";
+
+	# call "gitpkgtool-buildrpm-post-source-copy-hook" if it exists
+	if (-x "gitpkgtool-buildrpm-post-source-copy-hook" ) {
+		$verbose && print STDERR " * Calling gitpkgtool-buildrpm-post-source-copy-hook\n";
+		my $ret = call_system ("./gitpkgtool-buildrpm-post-source-copy-hook \"${version}\" \"" . $dir . "/source/${project}${currentBranch}-${version}\"");
+		if ($ret != 0) {
+			die "failed calling gitpkgtool-buildrpm-post-source-copy-hook\n";
+		}
+	};
+
+	$verbose && print STDERR " * building $buildtag as version $version\n";
+	$verbose && print STDERR "Executing [.nsisbuild.sh \"$project${currentBranch}\" \"${version}\"]\n";
+
+	mkdir $dir . "/output";
+
+	chdir $dir . "/source/$project${currentBranch}-${version}";
+	system ("./.nsisbuild.sh \"$project${currentBranch}\" \"${version}\" \"../../output\"");
+
+	# we should be in {project}/{temp}/source/Datalogger, so this should bring
+	# us back to {project}/{temp}.
+
+	chdir "../..";
+
+
+	# write a VERSION.txt into the output folder.
+	open (FO, ">output/VERSION.txt");
+	print FO "${project}${currentBranch}-${version}\n";
+	close (FO);
+
+
+
+	# copy the .nsi file over, and edit the pkgname and version.
+
+	my $nsifile = "$project.nsi";
+	open (FO, "> ${project}.nsi");
+
+	# parse through specfile
+	open (FI, "../${project}.nsi") || die "There is no $project.nsi file in ".
+		"the source.\n";
+	while (my $line = <FI>) {
+		# replace version number
+		if ($line =~ /^\!define VERSION /) {
+			$line = "!define VERSION \"$version\"\n";
+		};
+		if ($line =~ /^\!define PKGNAME /) {
+			$line = "!define PKGNAME \"$project\"\n";
+		};
+
+		# pass through other spec file lines
+		print FO $line;
+	};
+	close (FI);
+	close (FO);
+	$verbose && print STDERR " * Generated .nsi file as $dir/${project}.nsi\n";
+
+	$verbose && print STDERR " * Building installer as ${project}${currentBranch}-${version}.exe\n";
+
+	# ubuntu pkgs has it in /usr/bin, centos src compiles to /usr/local/bin.
+
+	#system ("/bin/sh");
+
+	system ("makensis ${project}.nsi");
+
+
+#			# generate changelog from git log
+#
+#			print FO "%changelog\n";
+#			my $lastauthor = "";
+#			open (FC, "git log |");
+#			while (my $line = <FC>) {
+#				chomp ($line);
+#				if ($line =~ /^commit/) { next; };
+#				if ($line =~ /^Merge:/) { next; };
+#				if ($line =~ /^Author:\s(.*)$/) {
+#					$lastauthor = $1;
+#					next;
+#				};
+#				if ($line =~ /^Date:\s+(\w+)\s+(\w+)\s+(\w+)\s+[\w:]+\s(\d+)\s/) {
+#					print FO "\n * $1 $2 $3 $4 $lastauthor\n";
+#					next;
+#				};
+#				if ($line =~ /^\s*$/) {
+#					next;
+#				};
+#				$line =~ s/^\s+//;
+#				print FO " - $line\n";
+#			};
+#			close (FC);
+#			next;
+#		};
+
+	#system ("/usr/local/bin/makensys
+
+}
