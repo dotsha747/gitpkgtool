@@ -1,15 +1,15 @@
 Source: gitpkgtool
-Section: contrib/
-Priority: extra
+Section: misc
+Priority: optional
 Maintainer: shahada abubakar <shahada@abubakar.net>
-Build-Depends: debhelper (>= 7.0.50~)
-Standards-Version: 3.8.4
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.2
 Homepage: http://home.abubakar.net/pubdocs
 Vcs-Git: http://home.abubakar.net/gitpub/gitpkgtool
 Vcs-Browser: http://home.abubakar.net/?p=gitpkgtool;a=summary
 
 Package: gitpkgtool
-Architecture: any
+Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: A tool to assist project versioning and packaging with git
  A tool to assist project versioning and packaging with git
