@@ -10,6 +10,6 @@ Vcs-Browser: http://home.abubakar.net/?p=gitpkgtool;a=summary
 
 Package: gitpkgtool
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, debhelper (>= 9)
 Description: A tool to assist project versioning and packaging with git
  A tool to assist project versioning and packaging with git

@@ -892,22 +892,16 @@ sub builddeb {
 	};
 
 
-#		if (defined $pub_postexec) {
-#			$verbose && print STDERR " * Executing post-publish script ...\n";
-#			call_system ($pub_postexec);
-#		}
-	#};
-	
 	# list output 
-		$verbose && print STDERR " * Output:\n\n";
+		print " * Output:\n\n";
 			foreach my $pkg (@packages) {
-				$verbose && print STDERR "$pkg\n";
+				print "$pkg\n";
 			};
-	#	$verbose && print STDERR "\n\n";
+	print "\n\n";
 
 	if ($publish) {
 		$verbose && print STDERR " * publishing packages ...\n";
-		call_system ($ENV{'HOME'} . "/deb/${package}${sover}-${version}/publish.sh " . join (" ", map { "\"" . $_ . "\"" } @packages)); 
+		call_system ($ENV{'HOME'} . "/deb/${package}${sover}-${version}/publish-deb.sh " . join (" ", map { "\"" . $_ . "\"" } @packages)); 
 	};
 
 	$verbose && print STDERR " * DONE\n";
