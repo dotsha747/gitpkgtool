@@ -7,4 +7,4 @@
 # 	DEBREPODIR
 
 scp $@ ${DEBREPOUSER}@${DEBREPOHOST}:${DEBREPODIR}/pool/main/
-ssh ${DEBREPOUSER}@${DEBREPOHOST} "cd ${DEBREPODIR}; ~/reindex_stable.sh"
+ssh ${DEBREPOUSER}@${DEBREPOHOST} "cd ${DEBREPODIR}; reindex_apt.sh"
