@@ -4,9 +4,9 @@ Priority: optional
 Maintainer: shahada abubakar <shahada@abubakar.net>
 Build-Depends: debhelper (>= 9)
 Standards-Version: 3.9.2
-Homepage: http://home.abubakar.net/pubdocs
-Vcs-Git: http://home.abubakar.net/gitpub/gitpkgtool
-Vcs-Browser: http://home.abubakar.net/?p=gitpkgtool;a=summary
+Homepage: https://github.com/dotsha747/gitpkgtool
+Vcs-Git: https://github.com/dotsha747/gitpkgtool
+Vcs-Browser: https://github.com/dotsha747/gitpkgtool
 
 Package: gitpkgtool
 Architecture: all
