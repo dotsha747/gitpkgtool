@@ -56,14 +56,14 @@ it directly:
 
 Or you can have gitpkgtool package itself (for .deb):
 
-  git clone http://home.abubakar.net/gitpub/gitpkgtool
+  git clone https://github.com/dotsha747/libXPlane-UDP-Client.git
   cd gitpkgtool
   ./gitpkgtool buildrpm
   sudo rpm -Uvh ~/rpm/RPMS/i386/gitpkgtool-N.i386.rpm
 
 Or this way (for .deb):
 
-  git clone http://home.abubakar.net/gitpub/gitpkgtool
+  git clone https://github.com/dotsha747/libXPlane-UDP-Client.git
   cd gitpkgtool
   ./gitpkgtool builddeb
   dpkg --install  ~/deb/gitpkgtool_N_i386.deb
