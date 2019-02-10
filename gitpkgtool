@@ -826,6 +826,8 @@ sub builddeb {
 		call_system ("cd $ENV{'HOME'}/deb/tar/${package}${sover}-${version}; ./patchVersion.sh \"$project\" \"$majorVersion\" \"$minorVersion\"");
 	};
 
+
+
 	# build the SOURCE tar file
 	my $tarfile = $ENV{'HOME'} . "/deb/${package}${sover}_${version}.orig.tar.gz";
 	call_system ("tar c" . ($debug ? "v":"") . "zfC $tarfile ".
@@ -844,6 +846,14 @@ sub builddeb {
 	# copy over debian subfolder
 	call_system ("cp -a debian " . $ENV{'HOME'}. "/deb/${package}${sover}-${version}/");
 
+	# fix permissions
+	# .install must not have execute bit set, will complain can't find files.
+	opendir (my $D, $ENV{'HOME'} . "/deb/${package}${sover}-${version}/debian");
+	foreach my $file (readdir ($D)) {
+		if ($file =~ /\.install$/) {
+			chmod 0644, $ENV{'HOME'} . "/deb/${package}${sover}-${version}/debian/" .$file;
+		}
+	};
 
 	# call patchDebian.sh to make changes to debian/ folder
 	if ( -x $ENV{'HOME'} . "/deb/${package}${sover}-${version}/patchDebian.sh" ) {
