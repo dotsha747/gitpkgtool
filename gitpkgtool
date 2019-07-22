@@ -1539,7 +1539,7 @@ sub buildsetup {
 	my $currentBranch = getCurrentBranch();
 	if ($currentBranch eq '(no branch)') {
 		$currentBranch = '';
-	} else if ($currentBranch eq 'master') {
+	} elsif ($currentBranch eq 'master') {
 		$currentBranch = '';
 	} else {
 		$currentBranch = '_' . $currentBranch;
