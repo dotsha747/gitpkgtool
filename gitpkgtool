@@ -272,6 +272,7 @@ sub buildrpm {
 	our $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
 	our $pub     = 0;
 	our $pubsrc  = 0;
+	our $forcebranch;
 
 	if ( -e ".gitpkgtool" ) {
 	  require ".gitpkgtool"
@@ -285,7 +286,8 @@ sub buildrpm {
 		'pub_dir=s' => \$pub_dir,
 		'pub_postexec=s' => \$pub_postexec,
 		'pub' => \$pub,
-		'pubsrc' => \$pubsrc
+		'pubsrc' => \$pubsrc,
+		'forcebranch=s' => $forcebranch
 	);
 
 	if (!$opt || $helpflag) {
@@ -298,7 +300,8 @@ sub buildrpm {
 			"  --pub_dir - user\@host:/dir of scp dest for publishing\n".
 			"  --pub_postexec - execute command after publishing\n".
 			"  --pub     - publish the Binary RPMS\n".
-			"  --pubsrc  - publish the Binary & Source RPMS\n";
+			"  --pubsrc  - publish the Binary & Source RPMS\n".
+			"  --forcebranch branch - overwrite actual branch\n";
 		exit (1);
 	};
 
@@ -386,12 +389,18 @@ sub buildrpm {
 		$project = basename ($nowdir);
 	};
 
-	my $currentBranch = getCurrentBranch();
-	if ($currentBranch eq 'master' || $currentBranch eq '') {
-		$currentBranch = '';
+	my $currentBranch;
+	if (defined $forcebranch) {
+		$currentBranch = getCurrentBranch();
+		if ($currentBranch eq 'master' || $currentBranch eq '') {
+			$currentBranch = '';
+		} else {
+			$currentBranch = '_' . $currentBranch;
+		}
 	} else {
-		$currentBranch = '_' . $currentBranch;
+		$currentBranch = $forcebranch;
 	}
+
 
 	# Checkout the specified build
 	if ($buildtag ne '') {
