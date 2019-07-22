@@ -287,7 +287,7 @@ sub buildrpm {
 		'pub_postexec=s' => \$pub_postexec,
 		'pub' => \$pub,
 		'pubsrc' => \$pubsrc,
-		'forcename=s' => $forcename
+		'forcename=s' => \$forcename
 	);
 
 	if (!$opt || $helpflag) {
