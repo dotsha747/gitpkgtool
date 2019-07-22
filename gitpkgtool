@@ -272,7 +272,7 @@ sub buildrpm {
 	our $pub_postexec = $ENV{'GITPKGTOOL_PUB_POSTEXEC'};
 	our $pub     = 0;
 	our $pubsrc  = 0;
-	our $forcebranch;
+	our $forcename;
 
 	if ( -e ".gitpkgtool" ) {
 	  require ".gitpkgtool"
@@ -287,7 +287,7 @@ sub buildrpm {
 		'pub_postexec=s' => \$pub_postexec,
 		'pub' => \$pub,
 		'pubsrc' => \$pubsrc,
-		'forcebranch=s' => $forcebranch
+		'forcename=s' => $forcename
 	);
 
 	if (!$opt || $helpflag) {
@@ -301,7 +301,7 @@ sub buildrpm {
 			"  --pub_postexec - execute command after publishing\n".
 			"  --pub     - publish the Binary RPMS\n".
 			"  --pubsrc  - publish the Binary & Source RPMS\n".
-			"  --forcebranch branch - overwrite actual branch\n";
+			"  --forcename branch - overwrite actual branch\n";
 		exit (1);
 	};
 
@@ -389,16 +389,11 @@ sub buildrpm {
 		$project = basename ($nowdir);
 	};
 
-	my $currentBranch;
-	if (defined $forcebranch) {
-		$currentBranch = getCurrentBranch();
-		if ($currentBranch eq 'master' || $currentBranch eq '') {
-			$currentBranch = '';
-		} else {
-			$currentBranch = '_' . $currentBranch;
-		}
+	my $currentBranch = getCurrentBranch();
+	if ($currentBranch eq 'master' || $currentBranch eq '') {
+		$currentBranch = '';
 	} else {
-		$currentBranch = $forcebranch;
+		$currentBranch = '_' . $currentBranch;
 	}
 
 
@@ -482,6 +477,12 @@ sub buildrpm {
 		};
 		if ($line =~ /^Source:/) {
 			$line = "Source: ${project}${currentBranch}-${version}.tar.gz\n";
+		};
+
+		if ($line =~ /^Name:/) {
+			if (defined $forcename) {
+				$line = "Name: $forcename\n";
+			};
 		};
 
 		if ($line =~ /^%changelog/) {
