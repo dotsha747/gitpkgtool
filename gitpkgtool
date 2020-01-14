@@ -275,7 +275,7 @@ sub buildrpm {
 	our $forcename;
 
 	if ( -e ".gitpkgtool" ) {
-	  require ".gitpkgtool"
+	  require "./.gitpkgtool"
 	}
 
 	my ($opt) = GetOptions (
@@ -688,7 +688,7 @@ sub builddeb {
 	my $pubsrc = undef;
 
 	if ( -e ".gitpkgtool" ) {
-	  require ".gitpkgtool"
+	  require "./.gitpkgtool"
 	}
 
 	my ($opt) = GetOptions (
@@ -956,7 +956,7 @@ sub buildipk {
 	our $publish;
 
 	if ( -e ".gitpkgtool" ) {
-	  require ".gitpkgtool"
+	  require "./.gitpkgtool"
 	}
 
 	my ($opt) = GetOptions (
@@ -1235,7 +1235,7 @@ sub buildrpmsource {
 	my $pubsrc  = 0;
 
 	if ( -e ".gitpkgtool" ) {
-	  require ".gitpkgtool"
+	  require "./.gitpkgtool"
 	}
 
 	my ($opt) = GetOptions (
@@ -1481,7 +1481,7 @@ sub buildsetup {
 	my $pubsrc  = 0;
 
 	if ( -e ".gitpkgtool" ) {
-	  require ".gitpkgtool"
+	  require "./.gitpkgtool"
 	}
 	
 
