@@ -309,47 +309,33 @@ sub buildrpm {
 	my ($buildtag, $reposource) = @ARGV;
 
 	# prepare RPM build area
+	# We now use "rpmdev-setuptree" from rpmdevtools for this. Which
+	# means the rpm build dir has moved from ~/rpm to ~/rpmbuild.
 
 	$verbose && print STDERR " * Preparing RPM build area\n";
-	$debug && print STDERR "   Writing " . $ENV{'HOME'}."/.rpmmacros\n";
-	open (F, "> " . $ENV{'HOME'} . "/.rpmmacros") || 
-		die "Failed to open " . $ENV{'HOME'} . "/.rpmmacros for writing.\n";
-	print F "%_topdir " . $ENV{'HOME'} . "/rpm\n";
-	print F "%_tmppath " . $ENV{'HOME'} . "/rpm/tmp\n";
-	# %distribution RedHat Linux 9
-	# %vendor RedHat
-	close (F);
+	call_system ("rpmdev-setuptree");
 
-	$debug && print STDERR "   Writing " . $ENV{'HOME'}."/.rpmrc\n";
-	open (F, "> " . $ENV{'HOME'} . "/.rpmrc") ||
-		die "Failed to open " . $ENV{'HOME'} . "/.rpmrc for writing.\n";
-	print F "buildarchtranslate: i386: i386\n";
-	print F "buildarchtranslate: i486: i386\n";
-	print F "buildarchtranslate: i586: i386\n";
-	print F "buildarchtranslate: i686: i386\n";
-	print F "buildarchtranslate: athlon: i386\n";
-	close (F);
+	
+	#$debug && print STDERR "   Writing " . $ENV{'HOME'}."/.rpmrc\n";
+	#open (F, "> " . $ENV{'HOME'} . "/.rpmrc") ||
+	#	die "Failed to open " . $ENV{'HOME'} . "/.rpmrc for writing.\n";
+	#print F "buildarchtranslate: i386: i386\n";
+	#print F "buildarchtranslate: i486: i386\n";
+	#print F "buildarchtranslate: i586: i386\n";
+	#print F "buildarchtranslate: i686: i386\n";
+	#print F "buildarchtranslate: athlon: i386\n";
+	#close (F);
+
+	# make some other folders that we need.
 
 	foreach my $d (
-		$ENV{'HOME'} . "/rpm",
-		$ENV{'HOME'} . "/rpm/BUILD",
-		$ENV{'HOME'} . "/rpm/RPMS",
-		$ENV{'HOME'} . "/rpm/RPMS/athlon",
-		$ENV{'HOME'} . "/rpm/RPMS/i386",
-		$ENV{'HOME'} . "/rpm/RPMS/i486",
-		$ENV{'HOME'} . "/rpm/RPMS/i586",
-		$ENV{'HOME'} . "/rpm/RPMS/i686",
-		$ENV{'HOME'} . "/rpm/RPMS/noarch",
-		$ENV{'HOME'} . "/rpm/SOURCES",
-		$ENV{'HOME'} . "/rpm/SPECS",
-		$ENV{'HOME'} . "/rpm/SRPMS",
-		$ENV{'HOME'} . "/rpm/tmp",
-		$ENV{'HOME'} . "/rpm/git",
-		$ENV{'HOME'} . "/rpm/tar",
+			$ENV{'HOME'} . "/rpmbuild/tmp",
+			$ENV{'HOME'} . "/rpmbuild/git",
+			$ENV{'HOME'} . "/rpmbuild/tar",
 	) {
-		$debug && print STDERR "   Creating folder $d\n";
-		call_system ("rm -rf $d");
-		mkdir $d || die "Failed to mkdir $d\n";
+			$debug && print STDERR "   Creating folder $d\n";
+			call_system ("rm -rf $d");
+			mkdir $d || die "Failed to mkdir $d\n";
 	};
 
 
@@ -359,7 +345,7 @@ sub buildrpm {
 	if (defined $reposource) {
 		
 		# user specified a repo to pull frm
-		$dir = $ENV{'HOME'} . "/rpm/git";
+		$dir = $ENV{'HOME'} . "/rpmbuild/git";
 		$verbose && print STDERR " * Cloning $reposource to $dir\n";
 
 		mkdir $dir;
@@ -436,32 +422,32 @@ sub buildrpm {
 
 
 	# copy into a folder of $project-$version 
-	mkdir $ENV{'HOME'} . "/rpm/tar/${project}${currentBranch}-$version";
+	mkdir $ENV{'HOME'} . "/rpmbuild/tar/${project}${currentBranch}-$version";
 	call_system ("tar czf - --exclude ".
 		"./$project.spec --exclude ./.git --exclude ./debian . | tar xpzfC ".
-		"- " . $ENV{'HOME'} . "/rpm/tar/${project}${currentBranch}-${version}") &&
+		"- " . $ENV{'HOME'} . "/rpmbuild/tar/${project}${currentBranch}-${version}") &&
 		die "Failed to build temporary tarfile";
 
 	# call "gitpkgtool-buildrpm-post-source-copy-hook" if it exists
 	if (-x "gitpkgtool-buildrpm-post-source-copy-hook" ) {
 		$verbose && print STDERR " * Calling gitpkgtool-buildrpm-post-source-copy-hook\n";
-		my $ret = call_system ("./gitpkgtool-buildrpm-post-source-copy-hook \"${version}\" \"" . $ENV{'HOME'} . "/rpm/tar/" . "${project}${currentBranch}-${version}\"");
+		my $ret = call_system ("./gitpkgtool-buildrpm-post-source-copy-hook \"${version}\" \"" . $ENV{'HOME'} . "/rpmbuild/tar/" . "${project}${currentBranch}-${version}\"");
 		if ($ret != 0) {
 			die "failed calling gitpkgtool-buildrpm-post-source-copy-hook\n";
 		}
 	};
 
 	# build the SOURCE tar file
-	my $tarfile = $ENV{'HOME'} . "/rpm/SOURCES/${project}${currentBranch}-${version}.tar.gz";
+	my $tarfile = $ENV{'HOME'} . "/rpmbuild/SOURCES/${project}${currentBranch}-${version}.tar.gz";
 	call_system ("tar c" . ($debug ? "v":"") . "zfC $tarfile ".
-		$ENV{'HOME'} . "/rpm/tar ${project}${currentBranch}-${version}") 
+		$ENV{'HOME'} . "/rpmbuild/tar ${project}${currentBranch}-${version}") 
 		&& die "Failed to build $tarfile\n";
 	$verbose && print STDERR " * source tarball is in $tarfile\n";
 
 
 	# copy the SPEC file over, setting version numbers and editing
 	# other tags on the fly.
-	my $specfile = $ENV{'HOME'} . "/rpm/SPECS/$project.spec";
+	my $specfile = $ENV{'HOME'} . "/rpmbuild/SPECS/$project.spec";
 	open (FO, "> $specfile");
 
 	printf FO "%%define _git_branch %s\n", 
@@ -477,6 +463,9 @@ sub buildrpm {
 		};
 		if ($line =~ /^Source:/) {
 			$line = "Source: ${project}${currentBranch}-${version}.tar.gz\n";
+		};
+		if ($line =~ /^Release:/) {
+			$line = "Release: 1%{?dist}\n";
 		};
 
 		if ($line =~ /^Name:/) {
@@ -528,7 +517,7 @@ sub buildrpm {
 		die ("rpmbuild of $project.spec failed.\n");
 
 	# scp
-	my $findcmd = "find " . $ENV{'HOME'} . "/rpm -type f -name \*.rpm " .
+	my $findcmd = "find " . $ENV{'HOME'} . "/rpmbuild -type f -name \*.rpm " .
 		($pub ? " ! -name \\*src.rpm" : "");
 	if ($pub || $pubsrc) {
 		my $filelist;
@@ -1277,47 +1266,33 @@ sub buildrpmsource {
 	my ($buildtag, $reposource) = @ARGV;
 
 	# prepare RPM build area
+	# We now use "rpmdev-setuptree" from rpmdevtools for this. Which
+	# means the rpm build dir has moved from ~/rpm to ~/rpmbuild.
 
 	$verbose && print STDERR " * Preparing RPM build area\n";
-	$debug && print STDERR "   Writing " . $ENV{'HOME'}."/.rpmmacros\n";
-	open (F, "> " . $ENV{'HOME'} . "/.rpmmacros") || 
-		die "Failed to open " . $ENV{'HOME'} . "/.rpmmacros for writing.\n";
-	print F "%_topdir " . $ENV{'HOME'} . "/rpm\n";
-	print F "%_tmppath " . $ENV{'HOME'} . "/rpm/tmp\n";
-	# %distribution RedHat Linux 9
-	# %vendor RedHat
-	close (F);
+	call_system ("rpmdev-setuptree");
 
-	$debug && print STDERR "   Writing " . $ENV{'HOME'}."/.rpmrc\n";
-	open (F, "> " . $ENV{'HOME'} . "/.rpmrc") ||
-		die "Failed to open " . $ENV{'HOME'} . "/.rpmrc for writing.\n";
-	print F "buildarchtranslate: i386: i386\n";
-	print F "buildarchtranslate: i486: i386\n";
-	print F "buildarchtranslate: i586: i386\n";
-	print F "buildarchtranslate: i686: i386\n";
-	print F "buildarchtranslate: athlon: i386\n";
-	close (F);
+	
+	#$debug && print STDERR "   Writing " . $ENV{'HOME'}."/.rpmrc\n";
+	#open (F, "> " . $ENV{'HOME'} . "/.rpmrc") ||
+	#	die "Failed to open " . $ENV{'HOME'} . "/.rpmrc for writing.\n";
+	#print F "buildarchtranslate: i386: i386\n";
+	#print F "buildarchtranslate: i486: i386\n";
+	#print F "buildarchtranslate: i586: i386\n";
+	#print F "buildarchtranslate: i686: i386\n";
+	#print F "buildarchtranslate: athlon: i386\n";
+	#close (F);
+
+	# make some other folders that we need.
 
 	foreach my $d (
-		$ENV{'HOME'} . "/rpm",
-		$ENV{'HOME'} . "/rpm/BUILD",
-		$ENV{'HOME'} . "/rpm/RPMS",
-		$ENV{'HOME'} . "/rpm/RPMS/athlon",
-		$ENV{'HOME'} . "/rpm/RPMS/i386",
-		$ENV{'HOME'} . "/rpm/RPMS/i486",
-		$ENV{'HOME'} . "/rpm/RPMS/i586",
-		$ENV{'HOME'} . "/rpm/RPMS/i686",
-		$ENV{'HOME'} . "/rpm/RPMS/noarch",
-		$ENV{'HOME'} . "/rpm/SOURCES",
-		$ENV{'HOME'} . "/rpm/SPECS",
-		$ENV{'HOME'} . "/rpm/SRPMS",
-		$ENV{'HOME'} . "/rpm/tmp",
-		$ENV{'HOME'} . "/rpm/git",
-		$ENV{'HOME'} . "/rpm/tar",
+			$ENV{'HOME'} . "/rpmbuild/tmp",
+			$ENV{'HOME'} . "/rpmbuild/git",
+			$ENV{'HOME'} . "/rpmbuild/tar",
 	) {
-		$debug && print STDERR "   Creating folder $d\n";
-		call_system ("rm -rf $d");
-		mkdir $d || die "Failed to mkdir $d\n";
+			$debug && print STDERR "   Creating folder $d\n";
+			call_system ("rm -rf $d");
+			mkdir $d || die "Failed to mkdir $d\n";
 	};
 
 
@@ -1327,7 +1302,7 @@ sub buildrpmsource {
 	if (defined $reposource) {
 		
 		# user specified a repo to pull frm
-		$dir = $ENV{'HOME'} . "/rpm/git";
+		$dir = $ENV{'HOME'} . "/rpmbuild/git";
 		$verbose && print STDERR " * Cloning $reposource to $dir\n";
 
 		mkdir $dir;
@@ -1357,6 +1332,13 @@ sub buildrpmsource {
 		$project = basename ($nowdir);
 	};
 
+	my $currentBranch = getCurrentBranch();
+	if ($currentBranch eq 'master' || $currentBranch eq '') {
+		$currentBranch = '';
+	} else {
+		$currentBranch = '_' . $currentBranch;
+	}
+
 	# Checkout the specified build
 	if ($buildtag ne '') {
 		$verbose && print STDERR " * Checking out build $buildtag\n";
@@ -1373,21 +1355,29 @@ sub buildrpmsource {
 	};
 
 	# work up a version number
-	my ($version) = $buildtag =~ /^B(\d)-?/;
-	$verbose && print STDERR " * building $buildtag as release $version\n";
+	my $version = buildToVersion ($buildtag);
+	$verbose && print STDERR " * building $buildtag as version $version\n";
 
 	# copy the SPEC file over, setting version numbers.
-	my $specfile = $ENV{'HOME'} . "/rpm/SPECS/$project.spec";
+	my $specfile = $ENV{'HOME'} . "/rpmbuild/SPECS/$project.spec";
 	open (FO, "> $specfile");
 
 	# parse through specfile
 	open (FI, "$project.spec") || die "There is no $project.spec file in ".
 		"the source.\n";
 	while (my $line = <FI>) {
-		# For "buildrpmsource" the git version is the Release number.
-		if ($line =~ /^Release:/) {
-			$line = "Release: $version\n";
+		
+		# replace version number
+		if ($line =~ /^Version:/) {
+			$line = "Version: $version\n";
 		};
+		if ($line =~ /^Source:/) {
+			$line = "Source: ${project}${currentBranch}-${version}.tar.gz\n";
+		};
+		if ($line =~ /^Release:/) {
+			$line = "Release: 1%{?dist}\n";
+		};
+
 
 		if ($line =~ /^%changelog/) {
 
@@ -1433,8 +1423,8 @@ sub buildrpmsource {
 			next;
 		};
 		call_system ("/bin/cp " . ($debug ? "-v " : "") . $file . " " .
-			$ENV{'HOME'} . "/rpm/SOURCES") && 
-			die "Failed to copy $file to /rpm/SOURCES";
+			$ENV{'HOME'} . "/rpmbuild/SOURCES") && 
+			die "Failed to copy $file to /rpmbuild/SOURCES";
 	};
 	closedir (DH);
 
@@ -1444,7 +1434,7 @@ sub buildrpmsource {
 		die ("rpmbuild of $project.spec failed.\n");
 
 	# scp
-	my $findcmd = "find " . $ENV{'HOME'} . "/rpm -type f -name \*.rpm " .
+	my $findcmd = "find " . $ENV{'HOME'} . "/rpmbuild -type f -name \*.rpm " .
 		($pub ? " ! -name \\*src.rpm" : "");
 	if ($pub || $pubsrc) {
 		my $filelist;

@@ -11,6 +11,7 @@ License: GPL
 Group: Development/Tools
 Source:
 URL: http://home.abubakar.net/pubdoc
+Requires: rpmdevtools
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
