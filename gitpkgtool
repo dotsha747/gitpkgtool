@@ -313,6 +313,7 @@ sub buildrpm {
 	# means the rpm build dir has moved from ~/rpm to ~/rpmbuild.
 
 	$verbose && print STDERR " * Preparing RPM build area\n";
+	call_system ("rm -rf ~/rpmbuild");
 	call_system ("rpmdev-setuptree");
 
 	
@@ -1270,6 +1271,7 @@ sub buildrpmsource {
 	# means the rpm build dir has moved from ~/rpm to ~/rpmbuild.
 
 	$verbose && print STDERR " * Preparing RPM build area\n";
+	call_system ("rm -rf ~/rpmbuild");
 	call_system ("rpmdev-setuptree");
 
 	
