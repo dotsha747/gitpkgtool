@@ -466,7 +466,7 @@ sub buildrpm {
 			$line = "Source: ${project}${currentBranch}-${version}.tar.gz\n";
 		};
 		if ($line =~ /^Release:/) {
-			$line = "Release: 1%{?dist}{?repo}\n";
+			$line = "Release: 1%{?dist}%{?repo}\n";
 		};
 
 		if ($line =~ /^Name:/) {
